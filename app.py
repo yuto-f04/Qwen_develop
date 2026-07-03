@@ -119,7 +119,7 @@ css = """
 .step-box { border: 1px solid #444; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
 """
 
-with gr.Blocks(title="嘘ツアーガイド音声生成", css=css) as demo:
+with gr.Blocks(title="嘘ツアーガイド音声生成") as demo:
     gr.Markdown("# 嘘キャンパスツアーガイド音声生成")
     gr.Markdown("3つのステップを順番に実行してください。")
 
@@ -197,4 +197,4 @@ with gr.Blocks(title="嘘ツアーガイド音声生成", css=css) as demo:
     )
 
 if __name__ == "__main__":
-    demo.launch(share=True)
+    demo.launch(share=True, css=css)
