@@ -37,9 +37,14 @@ def create_clean_audio(youtube_url: str, ref_audio_file, progress=gr.Progress())
         raw_audio = os.path.join(OUTPUT_DIR, "raw_audio.wav")
         download_audio(youtube_url.strip(), raw_audio)
 
-        progress(0.40, desc="BGM・ノイズを除去中 (Demucs)... ※時間がかかります")
+        # Demucs の前に短く切り取る → 全体を処理せずに済むので大幅に高速化
+        progress(0.30, desc=f"音声を {MAX_REF_SECONDS} 秒にトリミング中...")
+        raw_short = os.path.join(OUTPUT_DIR, "raw_short.wav")
+        trim_reference_audio(raw_audio, raw_short, max_seconds=MAX_REF_SECONDS)
+
+        progress(0.50, desc="BGM・ノイズを除去中 (Demucs)...")
         vocal_audio = os.path.join(OUTPUT_DIR, "vocals.wav")
-        remove_bgm(raw_audio, vocal_audio)
+        remove_bgm(raw_short, vocal_audio)
         ref_source = vocal_audio
 
     elif ref_audio_file:
@@ -48,7 +53,7 @@ def create_clean_audio(youtube_url: str, ref_audio_file, progress=gr.Progress())
     else:
         return None, "⚠ YouTube URL か音声ファイルのどちらかを指定してください。"
 
-    progress(0.90, desc=f"音声を {MAX_REF_SECONDS} 秒にトリミング中...")
+    progress(0.90, desc="クリーン音声を保存中...")
     trim_reference_audio(ref_source, TRIMMED_AUDIO_PATH, max_seconds=MAX_REF_SECONDS)
 
     progress(1.0, desc="完了")
