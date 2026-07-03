@@ -20,7 +20,7 @@ class TestMergeAudioFiles:
         f2 = make_wav(str(tmp_path / "2.wav"), duration=1.0, sr=16000)
         out = str(tmp_path / "out.wav")
 
-        merge_audio_files([f1, f2], out, silence_ms=400)
+        merge_audio_files([(f1, 400), (f2, 0)], out)
 
         data, sr = sf.read(out)
         # 1s + 0.4s silence + 1s = 2.4s
@@ -33,7 +33,7 @@ class TestMergeAudioFiles:
         f2 = make_wav(str(tmp_path / "2.wav"), duration=0.5, sr=sr, value=1.0)
         out = str(tmp_path / "out.wav")
 
-        merge_audio_files([f1, f2], out, silence_ms=200)
+        merge_audio_files([(f1, 200), (f2, 0)], out)
 
         data, _ = sf.read(out)
         # 無音区間: サンプル 0.5s〜0.7s
@@ -45,7 +45,7 @@ class TestMergeAudioFiles:
         f1 = make_wav(str(tmp_path / "1.wav"), duration=1.0, sr=16000)
         out = str(tmp_path / "out.wav")
 
-        merge_audio_files([f1], out, silence_ms=400)
+        merge_audio_files([(f1, 400)], out)
 
         data, sr = sf.read(out)
         assert abs(len(data) / sr - 1.0) < 0.01
@@ -54,14 +54,14 @@ class TestMergeAudioFiles:
         f1 = make_wav(str(tmp_path / "1.wav"))
         out = str(tmp_path / "out.wav")
 
-        result = merge_audio_files([f1], out)
+        result = merge_audio_files([(f1, 0)], out)
         assert result == out
 
     def test_output_file_created(self, tmp_path):
         f1 = make_wav(str(tmp_path / "1.wav"))
         out = str(tmp_path / "out.wav")
 
-        merge_audio_files([f1], out)
+        merge_audio_files([(f1, 0)], out)
         assert os.path.exists(out)
 
     def test_three_files_length(self, tmp_path):
@@ -72,7 +72,7 @@ class TestMergeAudioFiles:
         ]
         out = str(tmp_path / "out.wav")
 
-        merge_audio_files(files, out, silence_ms=300)
+        merge_audio_files([(files[0], 300), (files[1], 300), (files[2], 0)], out)
 
         data, _ = sf.read(out)
         # 1s + 0.3s + 1s + 0.3s + 1s = 3.6s
@@ -83,3 +83,18 @@ class TestMergeAudioFiles:
         out = str(tmp_path / "out.wav")
         with pytest.raises(ValueError):
             merge_audio_files([], out)
+
+    def test_variable_silence_per_segment(self, tmp_path):
+        # 読点後(150ms)と句点後(400ms)が混在する実際のユースケース
+        sr = 16000
+        f1 = make_wav(str(tmp_path / "1.wav"), duration=0.5, sr=sr)
+        f2 = make_wav(str(tmp_path / "2.wav"), duration=0.5, sr=sr)
+        f3 = make_wav(str(tmp_path / "3.wav"), duration=0.5, sr=sr)
+        out = str(tmp_path / "out.wav")
+
+        merge_audio_files([(f1, 150), (f2, 400), (f3, 0)], out)
+
+        data, _ = sf.read(out)
+        # 0.5s + 0.15s + 0.5s + 0.4s + 0.5s = 2.05s
+        expected = int(0.5 * sr) * 3 + int(0.15 * sr) + int(0.4 * sr)
+        assert abs(len(data) - expected) <= 2

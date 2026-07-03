@@ -1,7 +1,8 @@
 import os
 
 # 音声結合時に挟む無音の長さ (ミリ秒)
-SILENCE_MS = 400
+SILENCE_MS = 400        # 句点(。！？)後
+SILENCE_COMMA_MS = 150  # 読点(、)後
 
 # 参照音声の最大秒数 (これを超えたらトリミング)
 MAX_REF_SECONDS = 10

@@ -19,10 +19,10 @@ from src.config import (
     MAX_REF_SECONDS,
     OUTPUT_DIR,
     SENTENCES_DIR,
-    SILENCE_MS,
     TRIMMED_AUDIO_PATH,
 )
 from src.script_splitter import split_into_sentences
+from src.text_normalizer import normalize_for_tts
 
 
 # ------------------------------------------------------------------ #
@@ -90,22 +90,26 @@ def generate_audio(script_text: str, ref_text: str, progress=gr.Progress()):
     os.makedirs(SENTENCES_DIR, exist_ok=True)
 
     progress(0.05, desc="台本を文分割中...")
-    sentences = split_into_sentences(script_text)
-    if not sentences:
+    normalized = normalize_for_tts(script_text)
+    segments = split_into_sentences(normalized)
+    if not segments:
         return None, "⚠ 台本から文を抽出できませんでした。句点(。！？)が含まれているか確認してください。"
+
+    texts = [t for t, _ in segments]
+    silences = [ms for _, ms in segments]
 
     from src.tts_generate import generate_all
 
-    progress(0.10, desc=f"TTS 生成中 (全 {len(sentences)} 文)...")
+    progress(0.10, desc=f"TTS 生成中 (全 {len(segments)} フレーズ)...")
     audio_files = generate_all(
-        sentences, TRIMMED_AUDIO_PATH, SENTENCES_DIR, ref_text=ref_text
+        texts, TRIMMED_AUDIO_PATH, SENTENCES_DIR, ref_text=ref_text
     )
 
     progress(0.95, desc="音声ファイルを結合中...")
-    merge_audio_files(audio_files, FINAL_OUTPUT_PATH, silence_ms=SILENCE_MS)
+    merge_audio_files(list(zip(audio_files, silences)), FINAL_OUTPUT_PATH)
 
     progress(1.0, desc="完了")
-    return FINAL_OUTPUT_PATH, f"✅ 完了！ {len(sentences)} 文を生成しました。"
+    return FINAL_OUTPUT_PATH, f"✅ 完了！ {len(segments)} フレーズを生成しました。"
 
 
 # ------------------------------------------------------------------ #
