@@ -37,25 +37,33 @@ class TestDownloadAudio:
 
 
 class TestRemoveBgm:
+    def _make_demucs_output(self, tmp_path, input_stem: str) -> None:
+        """Demucs が生成するディレクトリ構造とダミーファイルを作成する。"""
+        demucs_dir = tmp_path / "htdemucs" / input_stem
+        demucs_dir.mkdir(parents=True)
+        (demucs_dir / "vocals.wav").write_bytes(b"dummy_wav")
+
     def test_calls_demucs(self, tmp_path):
         from src.audio_preprocess import remove_bgm
 
-        out = str(tmp_path / "vocals.wav")
+        self._make_demucs_output(tmp_path, "input")
+        out = str(tmp_path / "vocals_out.wav")
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
-            result = remove_bgm("input.wav", out)
-            assert mock_run.called
+            result = remove_bgm(str(tmp_path / "input.wav"), out)
             cmd_args = mock_run.call_args[0][0]
             assert "demucs" in " ".join(cmd_args)
             assert "--two-stems=vocals" in cmd_args
 
-    def test_returns_output_path(self, tmp_path):
+    def test_moves_vocals_to_output_path(self, tmp_path):
         from src.audio_preprocess import remove_bgm
 
-        out = str(tmp_path / "vocals.wav")
+        self._make_demucs_output(tmp_path, "raw_audio")
+        out = str(tmp_path / "vocals_out.wav")
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
-            result = remove_bgm("input.wav", out)
+            result = remove_bgm(str(tmp_path / "raw_audio.wav"), out)
+        assert os.path.exists(out)
         assert result == out
 
 

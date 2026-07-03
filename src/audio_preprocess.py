@@ -1,6 +1,6 @@
 import os
+import shutil
 import subprocess
-from typing import Optional
 
 from src.config import MAX_REF_SECONDS, WHISPER_MODEL_SIZE
 
@@ -16,13 +16,19 @@ def download_audio(youtube_url: str, output_path: str) -> str:
 def remove_bgm(input_path: str, output_path: str) -> str:
     """Demucs を使って BGM/ノイズを除去しボーカルのみ抽出する (GPU依存)。
 
-    output_path にボーカル音声を書き出す。
-    Demucs は出力先を --out-dir で指定するため、output_path の親ディレクトリに出力する。
+    Demucs は -o で指定したディレクトリの下に
+    htdemucs/{入力ファイル名}/vocals.wav を生成するため、
+    処理後に output_path へ移動する。
     """
     out_dir = os.path.dirname(os.path.abspath(output_path))
     os.makedirs(out_dir, exist_ok=True)
     cmd = ["python", "-m", "demucs", "--two-stems=vocals", "-o", out_dir, input_path]
     subprocess.run(cmd, check=True)
+
+    # Demucs の実際の出力先: out_dir/htdemucs/{input_stem}/vocals.wav
+    input_stem = os.path.splitext(os.path.basename(input_path))[0]
+    demucs_out = os.path.join(out_dir, "htdemucs", input_stem, "vocals.wav")
+    shutil.move(demucs_out, output_path)
     return output_path
 
 
