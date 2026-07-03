@@ -1,8 +1,7 @@
 """嘘キャンパスツアーガイド音声生成 Gradio UI。
 
 Colab 上で GPU を使って起動することを前提とする。
-ローカルでは `import app` が通ることだけ確認できればよい。
-起動: python app.py  (Colab では share=True で公開URL が発行される)
+起動: python app.py  (share=True で公開URLが発行される)
 """
 import os
 
@@ -26,22 +25,19 @@ from src.config import (
 from src.script_splitter import split_into_sentences
 
 
-def prepare_reference(youtube_url: str, ref_audio_file, progress=gr.Progress()):
-    """参照音声を準備し、クリーン音声と文字起こし結果を返す。
-
-    戻り値:
-        clean_audio_path: ダウンロード可能なトリミング済み音声
-        ref_text:         Whisper による文字起こし（手で修正可能）
-        status:           進捗メッセージ
-    """
+# ------------------------------------------------------------------ #
+#  Step 1: クリーン音声を生成                                          #
+# ------------------------------------------------------------------ #
+def create_clean_audio(youtube_url: str, ref_audio_file, progress=gr.Progress()):
+    """YouTube URL または音声ファイルから BGM を除去し 10 秒にトリミングする。"""
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     if youtube_url and youtube_url.strip():
-        progress(0.05, desc="YouTube から音声をダウンロード中...")
+        progress(0.10, desc="YouTube から音声をダウンロード中...")
         raw_audio = os.path.join(OUTPUT_DIR, "raw_audio.wav")
         download_audio(youtube_url.strip(), raw_audio)
 
-        progress(0.40, desc="BGM・ノイズを除去中 (Demucs)...")
+        progress(0.40, desc="BGM・ノイズを除去中 (Demucs)... ※時間がかかります")
         vocal_audio = os.path.join(OUTPUT_DIR, "vocals.wav")
         remove_bgm(raw_audio, vocal_audio)
         ref_source = vocal_audio
@@ -50,31 +46,48 @@ def prepare_reference(youtube_url: str, ref_audio_file, progress=gr.Progress()):
         ref_source = ref_audio_file
 
     else:
-        return None, "", "エラー: YouTube URL か参照音声ファイルのどちらかを指定してください。"
+        return None, "⚠ YouTube URL か音声ファイルのどちらかを指定してください。"
 
-    progress(0.70, desc=f"音声を {MAX_REF_SECONDS} 秒にトリミング中...")
+    progress(0.90, desc=f"音声を {MAX_REF_SECONDS} 秒にトリミング中...")
     trim_reference_audio(ref_source, TRIMMED_AUDIO_PATH, max_seconds=MAX_REF_SECONDS)
 
-    progress(0.85, desc="Whisper で文字起こし中...")
+    progress(1.0, desc="完了")
+    return TRIMMED_AUDIO_PATH, "✅ クリーン音声を生成しました。再生して確認してください。"
+
+
+# ------------------------------------------------------------------ #
+#  Step 2: 文字起こし                                                  #
+# ------------------------------------------------------------------ #
+def run_transcription(progress=gr.Progress()):
+    """Step 1 で生成したクリーン音声を Whisper で文字起こしする。"""
+    if not os.path.exists(TRIMMED_AUDIO_PATH):
+        return "", "⚠ 先に Step 1 でクリーン音声を生成してください。"
+
+    progress(0.3, desc="Whisper で文字起こし中...")
     ref_text = transcribe(TRIMMED_AUDIO_PATH)
 
-    progress(1.0, desc="完了。クリーン音声を確認し、文字起こしを修正してください。")
-    return TRIMMED_AUDIO_PATH, ref_text, "完了！クリーン音声を確認・ダウンロードし、文字起こしを修正してから「音声生成開始」を押してください。"
+    progress(1.0, desc="完了")
+    return ref_text, "✅ 文字起こし完了。内容を確認・修正してください。"
 
 
+# ------------------------------------------------------------------ #
+#  Step 3: 音声生成                                                    #
+# ------------------------------------------------------------------ #
 def generate_audio(script_text: str, ref_text: str, progress=gr.Progress()):
-    """修正済み ref_text を使って TTS 生成 → 結合する。"""
+    """台本テキストと文字起こしを使って TTS 音声を生成・結合する。"""
+    if not os.path.exists(TRIMMED_AUDIO_PATH):
+        return None, "⚠ 先に Step 1 でクリーン音声を生成してください。"
     if not ref_text.strip():
-        return None, "エラー: 文字起こしテキストが空です。先に「文字起こし実行」を押してください。"
+        return None, "⚠ 先に Step 2 で文字起こしを実行してください。"
     if not script_text.strip():
-        return None, "エラー: 台本テキストが空です。"
+        return None, "⚠ 台本テキストを入力してください。"
 
     os.makedirs(SENTENCES_DIR, exist_ok=True)
 
     progress(0.05, desc="台本を文分割中...")
     sentences = split_into_sentences(script_text)
     if not sentences:
-        return None, "エラー: 台本から文を抽出できませんでした。句点(。！？)が含まれているか確認してください。"
+        return None, "⚠ 台本から文を抽出できませんでした。句点(。！？)が含まれているか確認してください。"
 
     from src.tts_generate import generate_all
 
@@ -86,62 +99,92 @@ def generate_audio(script_text: str, ref_text: str, progress=gr.Progress()):
     progress(0.95, desc="音声ファイルを結合中...")
     merge_audio_files(audio_files, FINAL_OUTPUT_PATH, silence_ms=SILENCE_MS)
 
-    progress(1.0, desc="完了！")
-    return FINAL_OUTPUT_PATH, f"完了！ {len(sentences)} 文を生成しました。"
+    progress(1.0, desc="完了")
+    return FINAL_OUTPUT_PATH, f"✅ 完了！ {len(sentences)} 文を生成しました。"
 
 
-with gr.Blocks(title="嘘ツアーガイド音声生成") as demo:
+# ------------------------------------------------------------------ #
+#  Gradio UI                                                           #
+# ------------------------------------------------------------------ #
+css = """
+.step-box { border: 1px solid #444; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+"""
+
+with gr.Blocks(title="嘘ツアーガイド音声生成", css=css) as demo:
     gr.Markdown("# 嘘キャンパスツアーガイド音声生成")
+    gr.Markdown("3つのステップを順番に実行してください。")
 
-    with gr.Row():
-        # 左カラム：入力
-        with gr.Column():
-            gr.Markdown("## Step 1: 参照音声の準備")
+    # ── Step 1 ──────────────────────────────────────────────────────
+    with gr.Group(elem_classes="step-box"):
+        gr.Markdown("## Step 1　クリーン音声を生成する")
+        gr.Markdown("YouTube URL を貼るか、手元の音声ファイルをアップロードしてください。BGM 除去 → 10 秒クリップを自動生成します。")
+        with gr.Row():
             youtube_url = gr.Textbox(
-                label="YouTube URL（BGM除去 → 10秒クリップを自動生成）",
+                label="YouTube URL",
                 placeholder="https://www.youtube.com/watch?v=...",
+                scale=3,
             )
             ref_audio = gr.Audio(
-                label="または手元の音声ファイルをアップロード",
+                label="または音声ファイルをアップロード",
                 type="filepath",
+                scale=2,
             )
-            transcribe_btn = gr.Button("▶ 文字起こし実行（クリーン音声を生成）", variant="secondary")
-
-            gr.Markdown("## Step 2: 台本を入力して音声生成")
-            ref_text_box = gr.Textbox(
-                label="参照音声の文字起こし（自動入力。間違っていれば手で修正してください）",
-                lines=4,
-                placeholder="先に「文字起こし実行」を押すと自動入力されます。",
-            )
-            script_text = gr.Textbox(
-                label="台本テキスト",
-                lines=12,
-                placeholder="ここに台本を貼り付けてください。句点(。！？)で文分割します。",
-            )
-            generate_btn = gr.Button("▶ 音声生成開始", variant="primary")
-
-        # 右カラム：出力
-        with gr.Column():
-            status_box = gr.Textbox(label="ステータス", interactive=False, lines=2)
+        clean_btn = gr.Button("① クリーン音声を生成（BGM除去 → 10秒）", variant="secondary")
+        with gr.Row():
             clean_audio_out = gr.Audio(
-                label="クリーン参照音声（10秒）← 確認・ダウンロード用",
+                label="生成されたクリーン音声（再生・ダウンロード）",
                 type="filepath",
+                scale=3,
             )
+            clean_status = gr.Textbox(label="ステータス", interactive=False, scale=2, lines=2)
+
+    # ── Step 2 ──────────────────────────────────────────────────────
+    with gr.Group(elem_classes="step-box"):
+        gr.Markdown("## Step 2　参照音声を文字起こしする")
+        gr.Markdown("Step 1 で生成したクリーン音声を Whisper で文字起こしします。間違っていれば手で直してください。")
+        transcribe_btn = gr.Button("② 文字起こし実行", variant="secondary")
+        with gr.Row():
+            ref_text_box = gr.Textbox(
+                label="文字起こし結果（ここを手で修正できます）",
+                lines=4,
+                placeholder="「② 文字起こし実行」を押すと自動入力されます。",
+                scale=3,
+            )
+            transcribe_status = gr.Textbox(label="ステータス", interactive=False, scale=2, lines=2)
+
+    # ── Step 3 ──────────────────────────────────────────────────────
+    with gr.Group(elem_classes="step-box"):
+        gr.Markdown("## Step 3　台本から音声を生成する")
+        gr.Markdown("台本テキストを貼り付けてください。句点(。！？)で1文ずつ分割して音声を生成します。")
+        script_text = gr.Textbox(
+            label="台本テキスト",
+            lines=12,
+            placeholder="ここに台本を貼り付けてください。",
+        )
+        generate_btn = gr.Button("③ 音声生成開始", variant="primary")
+        with gr.Row():
             output_audio = gr.Audio(
-                label="生成された完成音声 ← ダウンロード用",
+                label="完成音声（再生・ダウンロード）",
                 type="filepath",
+                scale=3,
             )
+            generate_status = gr.Textbox(label="ステータス", interactive=False, scale=2, lines=2)
 
-    transcribe_btn.click(
-        fn=prepare_reference,
+    # ── イベント接続 ─────────────────────────────────────────────────
+    clean_btn.click(
+        fn=create_clean_audio,
         inputs=[youtube_url, ref_audio],
-        outputs=[clean_audio_out, ref_text_box, status_box],
+        outputs=[clean_audio_out, clean_status],
     )
-
+    transcribe_btn.click(
+        fn=run_transcription,
+        inputs=[],
+        outputs=[ref_text_box, transcribe_status],
+    )
     generate_btn.click(
         fn=generate_audio,
         inputs=[script_text, ref_text_box],
-        outputs=[output_audio, status_box],
+        outputs=[output_audio, generate_status],
     )
 
 if __name__ == "__main__":
