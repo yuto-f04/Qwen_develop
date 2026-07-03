@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+
+# 仮想環境
+.venv/
+venv/
+env/
+
+# 音声ファイル (大容量・生成物)
+*.wav
+*.mp3
+*.mp4
+*.flac
+*.ogg
+
+# 出力ディレクトリ
+output/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 環境変数
+.env
+.env.local
+
+# モデルキャッシュ
+*.cache/

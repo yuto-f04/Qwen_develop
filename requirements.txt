@@ -1,0 +1,22 @@
+# Qwen3-TTS 音声生成パイプライン 依存パッケージ
+# Colab での実行を想定。torch は Colab に事前インストール済み。
+
+# --- TTS コア ---
+qwen-tts
+soundfile
+librosa
+
+# --- 音声取得・前処理 ---
+yt-dlp
+demucs
+openai-whisper
+
+# --- 音声処理ユーティリティ ---
+pydub
+numpy
+
+# --- UI ---
+gradio
+
+# --- テスト ---
+pytest

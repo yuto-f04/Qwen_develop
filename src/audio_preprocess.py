@@ -1,0 +1,55 @@
+import os
+import subprocess
+from typing import Optional
+
+from src.config import MAX_REF_SECONDS, WHISPER_MODEL_SIZE
+
+
+def download_audio(youtube_url: str, output_path: str) -> str:
+    """yt-dlp で YouTube から音声をダウンロードする。"""
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    cmd = ["yt-dlp", "-x", "--audio-format", "wav", "-o", output_path, youtube_url]
+    subprocess.run(cmd, check=True)
+    return output_path
+
+
+def remove_bgm(input_path: str, output_path: str) -> str:
+    """Demucs を使って BGM/ノイズを除去しボーカルのみ抽出する (GPU依存)。
+
+    output_path にボーカル音声を書き出す。
+    Demucs は出力先を --out-dir で指定するため、output_path の親ディレクトリに出力する。
+    """
+    out_dir = os.path.dirname(os.path.abspath(output_path))
+    os.makedirs(out_dir, exist_ok=True)
+    cmd = ["python", "-m", "demucs", "--two-stems=vocals", "-o", out_dir, input_path]
+    subprocess.run(cmd, check=True)
+    return output_path
+
+
+def transcribe(audio_path: str) -> str:
+    """Whisper で音声を文字起こしする (GPU推奨)。"""
+    import whisper  # GPU依存 - 関数内でのみインポート
+
+    model = whisper.load_model(WHISPER_MODEL_SIZE)
+    result = model.transcribe(audio_path, language="ja")
+    return result["text"]
+
+
+def trim_reference_audio(
+    input_path: str,
+    output_path: str,
+    max_seconds: int = MAX_REF_SECONDS,
+) -> str:
+    """参照音声を指定秒数にトリミングする (CPUのみ)。
+
+    max_seconds 以下の場合もそのまま output_path に書き出す。
+    """
+    import soundfile as sf  # CPU のみ
+
+    data, sr = sf.read(input_path)
+    max_samples = int(max_seconds * sr)
+    if len(data) > max_samples:
+        data = data[:max_samples]
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    sf.write(output_path, data, sr)
+    return output_path
