@@ -26,90 +26,110 @@ from src.config import (
 from src.script_splitter import split_into_sentences
 
 
-def process_pipeline(
-    youtube_url: str,
-    ref_audio_file,
-    script_text: str,
-    progress=gr.Progress(),
-) -> str:
-    """パイプライン全体を実行し、完成音声ファイルのパスを返す。"""
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    os.makedirs(SENTENCES_DIR, exist_ok=True)
+def prepare_reference(youtube_url: str, ref_audio_file, progress=gr.Progress()):
+    """参照音声を準備し、Whisper で文字起こしした結果を返す。
 
-    # 参照音声の取得
+    ユーザーはこの結果をテキストボックスで確認・修正できる。
+    """
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
     if youtube_url and youtube_url.strip():
-        progress(0.05, desc="YouTube から音声をダウンロード中...")
+        progress(0.1, desc="YouTube から音声をダウンロード中...")
         raw_audio = os.path.join(OUTPUT_DIR, "raw_audio.wav")
         download_audio(youtube_url.strip(), raw_audio)
 
-        progress(0.15, desc="BGM 除去中 (Demucs)...")
+        progress(0.4, desc="BGM 除去中 (Demucs)...")
         vocal_audio = os.path.join(OUTPUT_DIR, "vocals.wav")
         remove_bgm(raw_audio, vocal_audio)
         ref_source = vocal_audio
     elif ref_audio_file:
         ref_source = ref_audio_file
     else:
-        raise ValueError("YouTube URL か参照音声ファイルのどちらかを指定してください。")
+        return "", "エラー: YouTube URL か参照音声ファイルのどちらかを指定してください。"
 
-    progress(0.25, desc="参照音声をトリミング中...")
+    progress(0.7, desc="参照音声をトリミング中...")
     trim_reference_audio(ref_source, TRIMMED_AUDIO_PATH, max_seconds=MAX_REF_SECONDS)
 
-    progress(0.30, desc="参照音声を文字起こし中 (Whisper)...")
+    progress(0.9, desc="Whisper で文字起こし中...")
     ref_text = transcribe(TRIMMED_AUDIO_PATH)
 
-    progress(0.35, desc="台本を文分割中...")
+    progress(1.0, desc="文字起こし完了。内容を確認・修正してください。")
+    return ref_text, "文字起こし完了。内容を確認・修正してから「音声生成開始」を押してください。"
+
+
+def generate_audio(script_text: str, ref_text: str, progress=gr.Progress()):
+    """修正済み ref_text を使って TTS 生成 → 結合する。"""
+    if not ref_text.strip():
+        return None, "エラー: 文字起こしテキストが空です。先に「文字起こし実行」を押してください。"
+
+    if not script_text.strip():
+        return None, "エラー: 台本テキストが空です。"
+
+    os.makedirs(SENTENCES_DIR, exist_ok=True)
+
+    progress(0.05, desc="台本を文分割中...")
     sentences = split_into_sentences(script_text)
     if not sentences:
-        raise ValueError("台本から文を抽出できませんでした。句点(。！？)が含まれているか確認してください。")
+        return None, "エラー: 台本から文を抽出できませんでした。句点(。！？)が含まれているか確認してください。"
 
-    # TTS 生成 (遅延インポートで GPU 依存を分離)
     from src.tts_generate import generate_all
 
-    progress(0.40, desc=f"TTS 生成中 (全 {len(sentences)} 文)...")
-    audio_files = generate_all(sentences, TRIMMED_AUDIO_PATH, SENTENCES_DIR, ref_text=ref_text)
+    progress(0.1, desc=f"TTS 生成中 (全 {len(sentences)} 文)...")
+    audio_files = generate_all(
+        sentences, TRIMMED_AUDIO_PATH, SENTENCES_DIR, ref_text=ref_text
+    )
 
-    progress(0.90, desc="音声ファイルを結合中...")
+    progress(0.95, desc="音声ファイルを結合中...")
     merge_audio_files(audio_files, FINAL_OUTPUT_PATH, silence_ms=SILENCE_MS)
 
     progress(1.0, desc="完了！")
-    return FINAL_OUTPUT_PATH
-
-
-def _run_pipeline(youtube_url, ref_audio, script_text):
-    try:
-        path = process_pipeline(youtube_url, ref_audio, script_text)
-        return path, "完了！"
-    except Exception as e:
-        return None, f"エラー: {e}"
+    return FINAL_OUTPUT_PATH, f"完了！ {len(sentences)} 文を生成しました。"
 
 
 with gr.Blocks(title="嘘ツアーガイド音声生成") as demo:
     gr.Markdown("# 嘘キャンパスツアーガイド音声生成")
-    gr.Markdown(
-        "YouTube URL または参照音声ファイルと台本テキストを入力して「生成開始」を押してください。"
-    )
 
     with gr.Row():
+        # 左カラム：入力
         with gr.Column():
+            gr.Markdown("## Step 1: 参照音声の準備")
             youtube_url = gr.Textbox(
                 label="YouTube URL（参照音声取得用）",
                 placeholder="https://www.youtube.com/watch?v=...",
             )
-            ref_audio = gr.Audio(label="または参照音声ファイルをアップロード", type="filepath")
+            ref_audio = gr.Audio(
+                label="または参照音声ファイルをアップロード（clean_audio1.wav 等）",
+                type="filepath",
+            )
+            transcribe_btn = gr.Button("文字起こし実行", variant="secondary")
+
+            gr.Markdown("## Step 2: 台本を入力して音声生成")
+            ref_text_box = gr.Textbox(
+                label="参照音声の文字起こし（自動入力されます。間違っていれば手で修正してください）",
+                lines=4,
+                placeholder="先に「文字起こし実行」を押すと自動入力されます。",
+            )
             script_text = gr.Textbox(
                 label="台本テキスト",
                 lines=12,
                 placeholder="ここに台本を貼り付けてください。句点(。！？)で文分割します。",
             )
-            run_btn = gr.Button("生成開始", variant="primary")
+            generate_btn = gr.Button("音声生成開始", variant="primary")
 
+        # 右カラム：出力
         with gr.Column():
+            status_box = gr.Textbox(label="ステータス", interactive=False, lines=2)
             output_audio = gr.Audio(label="生成された音声", type="filepath")
-            status_box = gr.Textbox(label="ステータス", interactive=False)
 
-    run_btn.click(
-        fn=_run_pipeline,
-        inputs=[youtube_url, ref_audio, script_text],
+    transcribe_btn.click(
+        fn=prepare_reference,
+        inputs=[youtube_url, ref_audio],
+        outputs=[ref_text_box, status_box],
+    )
+
+    generate_btn.click(
+        fn=generate_audio,
+        inputs=[script_text, ref_text_box],
         outputs=[output_audio, status_box],
     )
 
