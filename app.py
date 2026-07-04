@@ -3,6 +3,7 @@
 Colab 上で GPU を使って起動することを前提とする。
 起動: python app.py  (share=True で公開URLが発行される)
 """
+import json
 import os
 
 import gradio as gr
@@ -20,9 +21,33 @@ from src.config import (
     OUTPUT_DIR,
     SENTENCES_DIR,
     TRIMMED_AUDIO_PATH,
+    UI_STATE_PATH,
 )
 from src.script_splitter import split_into_sentences
 from src.text_normalizer import normalize_for_tts
+
+
+# ------------------------------------------------------------------ #
+#  UI 状態の自動保存・復元                                             #
+# ------------------------------------------------------------------ #
+def _save_ui_state(youtube_url_val: str, script_val: str, ref_text_val: str) -> None:
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    with open(UI_STATE_PATH, "w", encoding="utf-8") as f:
+        json.dump(
+            {"youtube_url": youtube_url_val, "script_text": script_val, "ref_text": ref_text_val},
+            f, ensure_ascii=False, indent=2,
+        )
+
+
+def _load_ui_state():
+    if os.path.exists(UI_STATE_PATH):
+        try:
+            with open(UI_STATE_PATH, "r", encoding="utf-8") as f:
+                s = json.load(f)
+            return s.get("youtube_url", ""), s.get("script_text", ""), s.get("ref_text", "")
+        except Exception:
+            pass
+    return "", "", ""
 
 
 # ------------------------------------------------------------------ #
@@ -202,6 +227,14 @@ with gr.Blocks(title="嘘ツアーガイド音声生成") as demo:
         inputs=[script_text, ref_text_box],
         outputs=[output_audio, generate_status],
     )
+
+    # ── 自動保存（テキスト変更のたびにファイルへ書き出す）──────────────
+    _state_inputs = [youtube_url, script_text, ref_text_box]
+    for component in _state_inputs:
+        component.change(fn=_save_ui_state, inputs=_state_inputs, outputs=[])
+
+    # ── 起動時に前回の入力を復元 ────────────────────────────────────
+    demo.load(fn=_load_ui_state, inputs=[], outputs=[youtube_url, script_text, ref_text_box])
 
 if __name__ == "__main__":
     demo.launch(share=True, css=css)

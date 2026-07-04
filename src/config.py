@@ -21,3 +21,6 @@ FINAL_OUTPUT_PATH = os.path.join(OUTPUT_DIR, "tour_guide.wav")
 
 # デフォルト参照音声パス
 REF_AUDIO_PATH = "clean_audio1.wav"
+
+# UI 状態の保存先
+UI_STATE_PATH = os.path.join(OUTPUT_DIR, "ui_state.json")
