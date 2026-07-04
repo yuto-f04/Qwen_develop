@@ -112,6 +112,11 @@ def generate_audio(script_text: str, ref_text: str, progress=gr.Progress()):
     if not script_text.strip():
         return None, "⚠ 台本テキストを入力してください。"
 
+    # 前回の生成ファイルを削除してから作り直す
+    if os.path.exists(SENTENCES_DIR):
+        for f in os.listdir(SENTENCES_DIR):
+            if f.endswith(".wav"):
+                os.remove(os.path.join(SENTENCES_DIR, f))
     os.makedirs(SENTENCES_DIR, exist_ok=True)
 
     progress(0.05, desc="台本を文分割中...")
@@ -125,9 +130,15 @@ def generate_audio(script_text: str, ref_text: str, progress=gr.Progress()):
 
     from src.tts_generate import generate_all
 
-    progress(0.10, desc=f"TTS 生成中 (全 {len(segments)} フレーズ)...")
+    total_phrases = len(segments)
+    progress(0.10, desc=f"TTS 生成中 (0/{total_phrases} フレーズ)...")
+
+    def _on_phrase_done(done: int, total: int) -> None:
+        progress(0.10 + 0.85 * done / total, desc=f"TTS 生成中 ({done}/{total} フレーズ)...")
+
     audio_files = generate_all(
-        texts, TRIMMED_AUDIO_PATH, SENTENCES_DIR, ref_text=ref_text
+        texts, TRIMMED_AUDIO_PATH, SENTENCES_DIR, ref_text=ref_text,
+        progress_callback=_on_phrase_done,
     )
 
     progress(0.95, desc="音声ファイルを結合中...")

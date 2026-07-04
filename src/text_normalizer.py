@@ -81,6 +81,7 @@ _OVERRIDE_DICT: Dict[str, str] = {
     "Dolby Atmos": "ドルビー アトモス",
     "BARCO": "バルコ",
     "KOBO": "こうぼう",
+    "3D": "さんディー",
 }
 
 
@@ -235,6 +236,21 @@ def _apply_units(text: str) -> str:
 
 
 # ------------------------------------------------------------------ #
+#  ルール0: 記号・括弧の前処理                                          #
+# ------------------------------------------------------------------ #
+# 三点リーダー・中黒連続 → 読点（ポーズとして扱う）
+_ELLIPSIS_PATTERN = re.compile(r"[…・]{1,}")
+# 装飾括弧（読まなくてよい）→ 除去
+_BRACKET_PATTERN = re.compile(r"[「」『』【】［］〔〕]")
+
+
+def _apply_preprocess(text: str) -> str:
+    text = _ELLIPSIS_PATTERN.sub("、", text)
+    text = _BRACKET_PATTERN.sub("", text)
+    return text
+
+
+# ------------------------------------------------------------------ #
 #  ルール6: フォールバック(未知の連続英字)                              #
 # ------------------------------------------------------------------ #
 _FALLBACK_ALPHA = re.compile(r"[A-Za-z]{2,}")
@@ -250,8 +266,9 @@ def _apply_fallback(text: str) -> str:
 def normalize_for_tts(text: str) -> str:
     """台本テキストをTTS向け読み上げ文字列に変換する。
 
-    適用順: ルール1(例外辞書) → 2(コード) → 3(時刻) → 4(年号) → 5(単位) → 6(フォールバック)
+    適用順: 0(記号前処理) → 1(例外辞書) → 2(コード) → 3(時刻) → 4(年号) → 5(単位) → 6(フォールバック)
     """
+    text = _apply_preprocess(text)
     text = _apply_override(text)
     text = _apply_code(text)
     text = _apply_time(text)

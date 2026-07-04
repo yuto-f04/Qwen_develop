@@ -68,17 +68,20 @@ def generate_all(
     reference_audio_path: str,
     output_dir: str,
     ref_text: str = "",
+    progress_callback=None,
 ) -> List[str]:
     """文リストを順番にすべて音声化し、生成した音声ファイルパスのリストを返す。
 
     ファイル名は連番で管理する (例: 0001.wav, 0002.wav ...)。
     5文ごとに CUDA キャッシュをクリアしてメモリ使用量を抑える。
+    progress_callback(done, total) が渡された場合は1文生成ごとに呼び出す。
     """
     import torch  # GPU依存 - 関数内でのみインポート
 
     os.makedirs(output_dir, exist_ok=True)
     model = _load_model()
     output_paths = []
+    total = len(sentences)
 
     for i, sentence in enumerate(sentences):
         output_path = os.path.join(output_dir, f"{i + 1:04d}.wav")
@@ -90,6 +93,9 @@ def generate_all(
             ref_text=ref_text,
         )
         output_paths.append(output_path)
+
+        if progress_callback:
+            progress_callback(i + 1, total)
 
         if i % 5 == 0:
             torch.cuda.empty_cache()

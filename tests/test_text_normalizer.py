@@ -59,6 +59,28 @@ class TestNumToYomi:
 
 
 # ------------------------------------------------------------------ #
+#  ルール0: 記号・括弧の前処理                                          #
+# ------------------------------------------------------------------ #
+class TestRule0Preprocess:
+    def test_ellipsis_to_toten(self):
+        assert normalize_for_tts("皆さん…どうぞ。") == "皆さん、どうぞ。"
+
+    def test_multiple_ellipsis(self):
+        result = normalize_for_tts("えっと……そうですね。")
+        assert "、" in result
+        assert "…" not in result
+
+    def test_kakko_removed(self):
+        assert normalize_for_tts("「秘密」の施設。") == "秘密の施設。"
+
+    def test_nijukakko_removed(self):
+        assert normalize_for_tts("『Dolby Atmos』対応。") == "ドルビー アトモス対応。"
+
+    def test_3d_converted(self):
+        assert normalize_for_tts("3Dプリンター。") == "さんディープリンター。"
+
+
+# ------------------------------------------------------------------ #
 #  ルール1: 例外辞書                                                    #
 # ------------------------------------------------------------------ #
 class TestRule1Override:
