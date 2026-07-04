@@ -7,21 +7,30 @@ import soundfile as sf
 
 from src.config import TTS_MODEL_ID
 
+_cached_model = None  # プロセス内でモデルを使い回す
+
 
 def _load_model():
-    """Qwen3-TTS モデルをロードして返す (GPU依存)。"""
+    """Qwen3-TTS モデルをロードして返す (GPU依存)。
+
+    2回目以降の呼び出しはキャッシュを返すため即座に完了する。
+    """
+    global _cached_model
+    if _cached_model is not None:
+        return _cached_model
+
     import torch  # GPU依存 - 関数内でのみインポート
     from qwen_tts import Qwen3TTSModel  # GPU依存 - 関数内でのみインポート
 
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
     torch.cuda.empty_cache()
     gc.collect()
-    model = Qwen3TTSModel.from_pretrained(
+    _cached_model = Qwen3TTSModel.from_pretrained(
         TTS_MODEL_ID,
         device_map="auto",
         dtype=torch.float16,
     )
-    return model
+    return _cached_model
 
 
 def generate_sentence_audio(
