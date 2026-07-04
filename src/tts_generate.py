@@ -20,7 +20,10 @@ def _load_model():
         return _cached_model
 
     import torch  # GPU依存 - 関数内でのみインポート
+    import transformers  # GPU依存 - 関数内でのみインポート
     from qwen_tts import Qwen3TTSModel  # GPU依存 - 関数内でのみインポート
+
+    transformers.logging.set_verbosity_error()  # pad_token_id 警告を抑制
 
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
     torch.cuda.empty_cache()
