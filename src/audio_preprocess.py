@@ -5,10 +5,17 @@ import subprocess
 from src.config import MAX_REF_SECONDS, WHISPER_MODEL_SIZE
 
 
-def download_audio(youtube_url: str, output_path: str) -> str:
-    """yt-dlp で YouTube から音声をダウンロードする。"""
+def download_audio(youtube_url: str, output_path: str, cookies_path: str = None) -> str:
+    """yt-dlp で YouTube から音声をダウンロードする。
+
+    cookies_path: YouTube のログイン Cookie ファイル (cookies.txt)。
+                  Colab など bot 判定される環境では必須。
+    """
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
-    cmd = ["yt-dlp", "-x", "--audio-format", "wav", "-o", output_path, youtube_url]
+    cmd = ["yt-dlp", "-x", "--audio-format", "wav", "-o", output_path]
+    if cookies_path:
+        cmd += ["--cookies", cookies_path]
+    cmd.append(youtube_url)
     subprocess.run(cmd, check=True)
     return output_path
 

@@ -35,6 +35,26 @@ class TestDownloadAudio:
             result = download_audio("https://youtube.com/test", out)
         assert result == out
 
+    def test_uses_cookies_when_provided(self, tmp_path):
+        from src.audio_preprocess import download_audio
+
+        cookies = str(tmp_path / "cookies.txt")
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            download_audio("https://youtube.com/test", "output/test.wav", cookies_path=cookies)
+            cmd_args = mock_run.call_args[0][0]
+            assert "--cookies" in cmd_args
+            assert cookies in cmd_args
+
+    def test_no_cookies_flag_when_not_provided(self):
+        from src.audio_preprocess import download_audio
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            download_audio("https://youtube.com/test", "output/test.wav")
+            cmd_args = mock_run.call_args[0][0]
+            assert "--cookies" not in cmd_args
+
 
 class TestRemoveBgm:
     def _make_demucs_output(self, tmp_path, input_stem: str) -> None:

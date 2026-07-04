@@ -28,14 +28,14 @@ from src.text_normalizer import normalize_for_tts
 # ------------------------------------------------------------------ #
 #  Step 1: クリーン音声を生成                                          #
 # ------------------------------------------------------------------ #
-def create_clean_audio(youtube_url: str, ref_audio_file, progress=gr.Progress()):
+def create_clean_audio(youtube_url: str, ref_audio_file, cookies_file, progress=gr.Progress()):
     """YouTube URL または音声ファイルから BGM を除去し 10 秒にトリミングする。"""
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     if youtube_url and youtube_url.strip():
         progress(0.10, desc="YouTube から音声をダウンロード中...")
         raw_audio = os.path.join(OUTPUT_DIR, "raw_audio.wav")
-        download_audio(youtube_url.strip(), raw_audio)
+        download_audio(youtube_url.strip(), raw_audio, cookies_path=cookies_file)
 
         # Demucs の前に短く切り取る → 全体を処理せずに済むので大幅に高速化
         progress(0.30, desc=f"音声を {MAX_REF_SECONDS} 秒にトリミング中...")
@@ -138,6 +138,13 @@ with gr.Blocks(title="嘘ツアーガイド音声生成") as demo:
                 type="filepath",
                 scale=2,
             )
+        with gr.Accordion("YouTube Cookie 設定（bot エラーが出た場合のみ）", open=False):
+            gr.Markdown(
+                "YouTube から「ログインして確認を」エラーが出た場合、ブラウザの Cookie を渡すと解決します。\n\n"
+                "**手順**: Chrome 拡張「[Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)」"
+                "で YouTube を開いた状態でエクスポートし、下にアップロードしてください。"
+            )
+            cookies_upload = gr.File(label="cookies.txt", file_types=[".txt"], type="filepath")
         clean_btn = gr.Button("① クリーン音声を生成（BGM除去 → 10秒）", variant="secondary")
         with gr.Row():
             clean_audio_out = gr.Audio(
@@ -182,7 +189,7 @@ with gr.Blocks(title="嘘ツアーガイド音声生成") as demo:
     # ── イベント接続 ─────────────────────────────────────────────────
     clean_btn.click(
         fn=create_clean_audio,
-        inputs=[youtube_url, ref_audio],
+        inputs=[youtube_url, ref_audio, cookies_upload],
         outputs=[clean_audio_out, clean_status],
     )
     transcribe_btn.click(

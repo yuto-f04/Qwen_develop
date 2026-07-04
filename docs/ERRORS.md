@@ -45,3 +45,20 @@
 ---
 
 *以降、Colab またはローカルで発生したエラーを都度ここに追記する。*
+
+---
+
+## 2026-07-04 yt-dlp が YouTube の bot 判定でダウンロード失敗 (Colab 環境)
+
+- **発生状況**: Colab 上で Gradio UI を起動し、YouTube URL を入力して「① クリーン音声を生成」を押したとき
+- **エラーメッセージ**:
+  ```
+  ERROR: [youtube] xxxx: Sign in to confirm you're not a bot. Use --cookies-from-browser or --cookies for the authentication.
+  subprocess.CalledProcessError: Command '['yt-dlp', ...]' returned non-zero exit status 1.
+  ```
+- **原因**: Colab の IP アドレスは YouTube から信頼されておらず、ログイン済みセッションの証明なしにダウンロードができない。
+- **解決策**:
+  1. `download_audio()` に `cookies_path: str = None` 引数を追加し、指定時は `--cookies` フラグを yt-dlp に渡すよう変更 (`src/audio_preprocess.py`)
+  2. `app.py` の Step 1 に cookies.txt アップロード UI（Accordion 内）を追加
+  3. Chrome 拡張「Get cookies.txt LOCALLY」で YouTube ログイン状態の Cookie をエクスポートし、UI からアップロードすることで認証を通す
+- **再発防止**: Colab で YouTube URL を使う場合は cookies.txt が必要。UI の Accordion に手順を明記済み。音声ファイルを直接アップロードすれば cookies 不要で回避もできる。
