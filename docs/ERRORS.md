@@ -62,3 +62,15 @@
   2. `app.py` の Step 1 に cookies.txt アップロード UI（Accordion 内）を追加
   3. Chrome 拡張「Get cookies.txt LOCALLY」で YouTube ログイン状態の Cookie をエクスポートし、UI からアップロードすることで認証を通す
 - **再発防止**: Colab で YouTube URL を使う場合は cookies.txt が必要。UI の Accordion に手順を明記済み。音声ファイルを直接アップロードすれば cookies 不要で回避もできる。
+
+## 2026-07-04 yt-dlp が n チャレンジを解けず音声フォーマットが取得できない (Colab 環境)
+
+- **発生状況**: cookies.txt を渡しても "Only images are available for download" となり音声ダウンロードが失敗する
+- **エラーメッセージ**:
+  ```
+  WARNING: n challenge solving failed: Some formats may be missing.
+  ERROR: [youtube] xxxx: Requested format is not available.
+  ```
+- **原因**: Colab に JavaScript ランタイム（deno/node）がなく、YouTube の n チャレンジを解けないため音声フォーマットが返ってこない
+- **解決策**: `download_audio` の yt-dlp コマンドに `--extractor-args "youtube:player_client=tv,web"` を追加。TV クライアントは n チャレンジ不要で音声を取得できる (`src/audio_preprocess.py`)
+- **再発防止**: yt-dlp で YouTube 音声を取得する際は常に `player_client=tv,web` を指定する

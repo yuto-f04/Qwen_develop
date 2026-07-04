@@ -12,7 +12,11 @@ def download_audio(youtube_url: str, output_path: str, cookies_path: str = None)
                   Colab など bot 判定される環境では必須。
     """
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
-    cmd = ["yt-dlp", "-x", "--audio-format", "wav", "-o", output_path]
+    cmd = [
+        "yt-dlp", "-x", "--audio-format", "wav",
+        "--extractor-args", "youtube:player_client=tv,web",
+        "-o", output_path,
+    ]
     if cookies_path:
         cmd += ["--cookies", cookies_path]
     cmd.append(youtube_url)
