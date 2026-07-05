@@ -74,3 +74,17 @@
 - **原因**: Colab に JavaScript ランタイム（deno/node）がなく、YouTube の n チャレンジを解けないため音声フォーマットが返ってこない
 - **解決策**: `download_audio` の yt-dlp コマンドに `--extractor-args "youtube:player_client=tv,web"` を追加。TV クライアントは n チャレンジ不要で音声を取得できる (`src/audio_preprocess.py`)
 - **再発防止**: yt-dlp で YouTube 音声を取得する際は常に `player_client=tv,web` を指定する
+
+## 2026-07-05 sox 未インストールにより TTS 音声生成が完了しない (Colab 環境)
+
+- **発生状況**: Colab 上で GPU 接続済みの状態で「③ 音声生成開始」を実行したとき。Demucs/Whisper は成功し `Setting pad_token_id to eos_token_id:2150` が100回以上出力されるが、音声ファイルが生成されない
+- **エラーメッセージ**:
+  ```
+  /bin/sh: 1: sox: not found
+  WARNING:sox:SoX could not be found!
+  ```
+- **原因**: `qwen_tts` ライブラリが音声デコード・後処理に `sox` OS バイナリを使う。`sox` は Python パッケージではなく `apt-get` で入れる OS 依存ツールのため、`pip install` だけでは入らない
+- **解決策**:
+  1. Colab セットアップセルに `!apt-get install -y sox libsox-fmt-all` を追加
+  2. `src/tts_generate.py` の `_load_model()` に `warnings.filterwarnings("ignore", message="Setting \`pad_token_id\`")` を追加して警告スパムを抑制
+- **再発防止**: Colab ノートブックのセットアップセルに必ず sox インストールを含める。`requirements.txt` はコメントで sox の必要性を明記する

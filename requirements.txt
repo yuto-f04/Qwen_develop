@@ -12,6 +12,8 @@ demucs
 openai-whisper
 
 # --- 音声処理ユーティリティ ---
+# 注意: qwen_tts は OS の sox バイナリも必要。Colab では pip の前に
+# !apt-get install -y sox libsox-fmt-all を実行すること
 pydub
 numpy
 
