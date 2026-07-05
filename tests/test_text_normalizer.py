@@ -107,6 +107,23 @@ class TestRule1Override:
         assert normalize_for_tts("UNESCOの遺産。") == "ユネスコの遺産。"
         del _OVERRIDE_DICT["UNESCO"]
 
+    def test_jbl(self):
+        """JBL → ジェイビーエル (フォールバックの ジェービーエル ではない)。"""
+        assert normalize_for_tts("JBL製スピーカー。") == "ジェイビーエル製スピーカー。"
+
+    def test_dolby_atmos_cinema(self):
+        """'Dolby Atmos Cinema' は 'Dolby Atmos' より優先されシネマまで変換される。"""
+        result = normalize_for_tts("国内初のDolby Atmos Cinema対応。")
+        assert result == "国内初のドルビー アトモス シネマ対応。"
+
+    def test_dolby_atmos_alone_still_works(self):
+        """'Dolby Atmos Cinema' 登録後も 'Dolby Atmos' 単体が変換される。"""
+        assert normalize_for_tts("Dolby Atmos対応。") == "ドルビー アトモス対応。"
+
+    def test_4k(self):
+        """4K → よんケー (どのルールにも引っかからない数字+1英字を辞書で変換)。"""
+        assert normalize_for_tts("BARCO社製4Kプロジェクター。") == "バルコ社製よんケープロジェクター。"
+
     def test_unlisted_word_not_converted_by_rule1(self):
         """辞書にない単語はルール1で変換されない(他ルールに委ねられる)。"""
         # "NASA"は辞書にないのでルール6(フォールバック)で変換される
