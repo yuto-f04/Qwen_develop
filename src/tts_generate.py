@@ -19,14 +19,18 @@ def _load_model():
     if _cached_model is not None:
         return _cached_model
 
+    import logging
     import warnings  # GPU依存 - 関数内でのみインポート
     import torch  # GPU依存 - 関数内でのみインポート
+    os.environ["TRANSFORMERS_VERBOSITY"] = "error"  # import transformers より前に設定
     import transformers  # GPU依存 - 関数内でのみインポート
     from qwen_tts import Qwen3TTSModel  # GPU依存 - 関数内でのみインポート
 
+    # pad_token_id スパムをロギング・警告の両経路で抑制
     transformers.logging.set_verbosity_error()
-    # UserWarning として出る pad_token_id スパムを抑制（logging ではなく warnings 経由）
-    warnings.filterwarnings("ignore", message="Setting `pad_token_id`")
+    logging.getLogger("transformers").setLevel(logging.ERROR)
+    logging.getLogger("transformers.generation").setLevel(logging.ERROR)
+    warnings.filterwarnings("ignore", message="Setting")
 
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
     torch.cuda.empty_cache()
@@ -51,12 +55,16 @@ def generate_sentence_audio(
     model が None の場合は _load_model() でロードする。
     生成した音声を output_path に書き出し、そのパスを返す。
     """
+    import logging
+    import warnings  # GPU依存 - 関数内でのみインポート
     import torch  # GPU依存 - 関数内でのみインポート
 
     if model is None:
         model = _load_model()
 
-    with torch.no_grad():
+    with torch.no_grad(), warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        logging.getLogger("transformers").setLevel(logging.ERROR)
         wavs, sr = model.generate_voice_clone(
             text=sentence,
             language="Japanese",
