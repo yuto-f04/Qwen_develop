@@ -20,6 +20,11 @@ def install_flash_attn():
     try:
         import torch
 
+        if torch.version.cuda is None:
+            print("flash-attn: ⚠️ GPU未接続のためスキップ"
+                  "（ランタイム → ランタイムのタイプを変更 → GPU を選択してから再実行）")
+            return
+
         cuda = torch.version.cuda.replace(".", "")[:3]
         tv = torch.__version__.split("+")[0]
         tv_mm = ".".join(tv.split(".")[:2])
