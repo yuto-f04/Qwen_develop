@@ -243,12 +243,15 @@ def _apply_units(text: str) -> str:
 # ------------------------------------------------------------------ #
 # 三点リーダー・中黒連続 → 読点（ポーズとして扱う）
 _ELLIPSIS_PATTERN = re.compile(r"[…・]{1,}")
+# 読点が句点・感嘆符・疑問符の直前にある場合 → 読点を除去（「数々…。」→「数々。」）
+_COMMA_BEFORE_PERIOD = re.compile(r"、([。！!?？])")
 # 装飾括弧（読まなくてよい）→ 除去
 _BRACKET_PATTERN = re.compile(r"[「」『』【】［］〔〕]")
 
 
 def _apply_preprocess(text: str) -> str:
     text = _ELLIPSIS_PATTERN.sub("、", text)
+    text = _COMMA_BEFORE_PERIOD.sub(r"\1", text)
     text = _BRACKET_PATTERN.sub("", text)
     return text
 

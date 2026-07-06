@@ -79,6 +79,18 @@ class TestRule0Preprocess:
     def test_3d_converted(self):
         assert normalize_for_tts("3Dプリンター。") == "さんディープリンター。"
 
+    def test_ellipsis_before_period(self):
+        """…の直後が句点なら、。にならず句点だけ残る（台本の「数々…。」パターン）。"""
+        assert normalize_for_tts("施設の数々…。") == "施設の数々。"
+
+    def test_ellipsis_before_question(self):
+        """…の直後が疑問符でも同様に、?にならず疑問符だけ残る。"""
+        assert normalize_for_tts("感じませんか……？") == "感じませんか？"
+
+    def test_ellipsis_mid_sentence_unchanged(self):
+        """文中の…は引き続き読点に変換される（ポーズ）。"""
+        assert normalize_for_tts("えっと……そうですね。") == "えっと、そうですね。"
+
 
 # ------------------------------------------------------------------ #
 #  ルール1: 例外辞書                                                    #
