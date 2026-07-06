@@ -70,6 +70,25 @@ def install_flash_attn():
         print(f"flash-attn: ⚠️ エラー: {e}")
 
 
+def install_quickjs():
+    """yt-dlp の n challenge 解決用 JS ランタイムをインストールする。"""
+    try:
+        import quickjs  # noqa: F401
+        print("quickjs: ✅ インストール済み（スキップ）")
+        return
+    except ImportError:
+        pass
+    r = subprocess.run(
+        [sys.executable, "-m", "pip", "install", "-q", "quickjs"],
+        capture_output=True, text=True,
+    )
+    if r.returncode == 0:
+        print("quickjs: ✅ インストール成功")
+    else:
+        print(f"quickjs: ⚠️ インストール失敗: {r.stderr[-200:]}")
+
+
 if __name__ == "__main__":
     install_sox()
+    install_quickjs()
     install_flash_attn()
