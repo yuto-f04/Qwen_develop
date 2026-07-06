@@ -93,7 +93,7 @@ def run_transcription(progress=gr.Progress()):
 # ------------------------------------------------------------------ #
 #  Step 3: 音声生成                                                    #
 # ------------------------------------------------------------------ #
-def generate_audio(script_text: str, ref_text: str, progress=gr.Progress()):
+def generate_audio(script_text: str, ref_text: str, resume: bool, progress=gr.Progress()):
     """台本テキストと文字起こしを使って TTS 音声を生成・結合する。"""
     if not os.path.exists(TRIMMED_AUDIO_PATH):
         return None, "⚠ 先に Step 1 でクリーン音声を生成してください。"
@@ -102,11 +102,12 @@ def generate_audio(script_text: str, ref_text: str, progress=gr.Progress()):
     if not script_text.strip():
         return None, "⚠ 台本テキストを入力してください。"
 
-    # 前回の生成ファイルを削除してから作り直す
-    if os.path.exists(SENTENCES_DIR):
-        for f in os.listdir(SENTENCES_DIR):
-            if f.endswith(".wav"):
-                os.remove(os.path.join(SENTENCES_DIR, f))
+    if not resume:
+        # 最初からやり直す場合のみ既存ファイルを削除
+        if os.path.exists(SENTENCES_DIR):
+            for f in os.listdir(SENTENCES_DIR):
+                if f.endswith(".wav"):
+                    os.remove(os.path.join(SENTENCES_DIR, f))
     os.makedirs(SENTENCES_DIR, exist_ok=True)
 
     progress(0.05, desc="台本を文分割中...")
@@ -128,7 +129,7 @@ def generate_audio(script_text: str, ref_text: str, progress=gr.Progress()):
 
     audio_files = generate_all(
         texts, TRIMMED_AUDIO_PATH, SENTENCES_DIR, ref_text=ref_text,
-        progress_callback=_on_phrase_done,
+        progress_callback=_on_phrase_done, resume=resume,
     )
 
     progress(0.95, desc="音声ファイルを結合中...")
@@ -193,6 +194,10 @@ with gr.Blocks(title="嘘ツアーガイド音声生成") as demo:
             lines=12,
             placeholder="ここに台本を貼り付けてください。",
         )
+        resume_check = gr.Checkbox(
+            label="途中から再開する（生成済みのフレーズをスキップ）",
+            value=False,
+        )
         generate_btn = gr.Button("③ 音声生成開始", variant="primary")
         with gr.Row():
             output_audio = gr.Audio(
@@ -215,7 +220,7 @@ with gr.Blocks(title="嘘ツアーガイド音声生成") as demo:
     )
     generate_btn.click(
         fn=generate_audio,
-        inputs=[script_text, ref_text_box],
+        inputs=[script_text, ref_text_box, resume_check],
         outputs=[output_audio, generate_status],
     )
 

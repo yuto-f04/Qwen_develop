@@ -125,3 +125,38 @@ class TestGenerateAll:
                 result = generate_all(sentences, "ref.wav", out_dir)
 
         assert all(os.path.exists(p) for p in result)
+
+    def test_resume_skips_existing_files(self, tmp_path):
+        from src.tts_generate import generate_all
+
+        out_dir = str(tmp_path / "sentences")
+        os.makedirs(out_dir, exist_ok=True)
+        sentences = ["文1。", "文2。", "文3。"]
+        model = _make_model_mock()
+
+        # 0001.wav だけ事前に作成（生成済み扱い）
+        sf.write(os.path.join(out_dir, "0001.wav"), DUMMY_WAV, DUMMY_SR)
+
+        with patch.dict(sys.modules, {"torch": _make_torch_mock(), "qwen_tts": MagicMock()}):
+            with patch("src.tts_generate._load_model", return_value=model):
+                generate_all(sentences, "ref.wav", out_dir, resume=True)
+
+        # スキップされたので 0001.wav への generate_voice_clone 呼び出しは2回だけ
+        assert model.generate_voice_clone.call_count == 2
+
+    def test_resume_false_regenerates_all(self, tmp_path):
+        from src.tts_generate import generate_all
+
+        out_dir = str(tmp_path / "sentences")
+        os.makedirs(out_dir, exist_ok=True)
+        sentences = ["文1。", "文2。"]
+        model = _make_model_mock()
+
+        sf.write(os.path.join(out_dir, "0001.wav"), DUMMY_WAV, DUMMY_SR)
+
+        with patch.dict(sys.modules, {"torch": _make_torch_mock(), "qwen_tts": MagicMock()}):
+            with patch("src.tts_generate._load_model", return_value=model):
+                generate_all(sentences, "ref.wav", out_dir, resume=False)
+
+        # resume=False なので既存ファイルも再生成される
+        assert model.generate_voice_clone.call_count == 2
