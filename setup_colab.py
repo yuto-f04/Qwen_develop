@@ -60,23 +60,11 @@ def install_flash_attn():
                     print(f"flash-attn: ✅ {ver} (cxx11abi{cxx}) インストール成功")
                     return
 
-        # フォールバック: ソースビルド（数分かかる）
-        print("flash-attn: プリビルド wheel が見つからないためソースビルドします（数分かかります）...")
-        r = subprocess.run(
-            [sys.executable, "-m", "pip", "install",
-             "packaging", "ninja", "-q"],
-            capture_output=True, text=True,
-        )
-        r = subprocess.run(
-            [sys.executable, "-m", "pip", "install",
-             "flash-attn==2.6.3", "--no-build-isolation", "-q"],
-            capture_output=True, text=True,
-        )
-        if r.returncode == 0:
-            print("flash-attn: ✅ ソースビルド成功")
-        else:
-            print("flash-attn: ⚠️ インストール失敗（TTS は正常動作します、速度が低下するのみ）")
-            print(f"  → CUDA={torch.version.cuda}, PyTorch={tv}, Python={py} を開発者に伝えてください")
+        # プリビルド wheel が見つからなかった場合はスキップ
+        # ソースビルドは20〜30分かかるため採用しない
+        print("flash-attn: ⚠️ 対応プリビルド wheel なし → スキップ")
+        print(f"  （TTS は正常動作します。速度低下のみ）")
+        print(f"  → CUDA={torch.version.cuda}, PyTorch={tv}, Python={py}")
 
     except Exception as e:
         print(f"flash-attn: ⚠️ エラー: {e}")
