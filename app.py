@@ -10,7 +10,6 @@ import gradio as gr
 
 from src.audio_merge import merge_audio_files
 from src.audio_preprocess import (
-    download_audio,
     remove_bgm,
     transcribe,
     trim_reference_audio,
@@ -30,11 +29,11 @@ from src.text_normalizer import normalize_for_tts
 # ------------------------------------------------------------------ #
 #  UI 状態の自動保存・復元                                             #
 # ------------------------------------------------------------------ #
-def _save_ui_state(youtube_url_val: str, script_val: str, ref_text_val: str) -> None:
+def _save_ui_state(script_val: str, ref_text_val: str) -> None:
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     with open(UI_STATE_PATH, "w", encoding="utf-8") as f:
         json.dump(
-            {"youtube_url": youtube_url_val, "script_text": script_val, "ref_text": ref_text_val},
+            {"script_text": script_val, "ref_text": ref_text_val},
             f, ensure_ascii=False, indent=2,
         )
 
@@ -44,42 +43,33 @@ def _load_ui_state():
         try:
             with open(UI_STATE_PATH, "r", encoding="utf-8") as f:
                 s = json.load(f)
-            return s.get("youtube_url", ""), s.get("script_text", ""), s.get("ref_text", "")
+            return s.get("script_text", ""), s.get("ref_text", "")
         except Exception:
             pass
-    return "", "", ""
+    return "", ""
 
 
 # ------------------------------------------------------------------ #
 #  Step 1: クリーン音声を生成                                          #
 # ------------------------------------------------------------------ #
-def create_clean_audio(youtube_url: str, ref_audio_file, cookies_file, progress=gr.Progress()):
-    """YouTube URL または音声ファイルから BGM を除去し 10 秒にトリミングする。"""
+def create_clean_audio(ref_audio_file, progress=gr.Progress()):
+    """アップロードされた音声ファイルから BGM を除去し 10 秒にトリミングする。"""
+    if not ref_audio_file:
+        return None, "⚠ 音声ファイルをアップロードしてください。"
+
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    if youtube_url and youtube_url.strip():
-        progress(0.10, desc="YouTube から音声をダウンロード中...")
-        raw_audio = os.path.join(OUTPUT_DIR, "raw_audio.wav")
-        download_audio(youtube_url.strip(), raw_audio, cookies_path=cookies_file)
+    # Demucs の前に短く切り取る → 全体を処理せずに済むので大幅に高速化
+    progress(0.20, desc=f"音声を {MAX_REF_SECONDS} 秒にトリミング中...")
+    raw_short = os.path.join(OUTPUT_DIR, "raw_short.wav")
+    trim_reference_audio(ref_audio_file, raw_short, max_seconds=MAX_REF_SECONDS)
 
-        # Demucs の前に短く切り取る → 全体を処理せずに済むので大幅に高速化
-        progress(0.30, desc=f"音声を {MAX_REF_SECONDS} 秒にトリミング中...")
-        raw_short = os.path.join(OUTPUT_DIR, "raw_short.wav")
-        trim_reference_audio(raw_audio, raw_short, max_seconds=MAX_REF_SECONDS)
-
-        progress(0.50, desc="BGM・ノイズを除去中 (Demucs)...")
-        vocal_audio = os.path.join(OUTPUT_DIR, "vocals.wav")
-        remove_bgm(raw_short, vocal_audio)
-        ref_source = vocal_audio
-
-    elif ref_audio_file:
-        ref_source = ref_audio_file
-
-    else:
-        return None, "⚠ YouTube URL か音声ファイルのどちらかを指定してください。"
+    progress(0.50, desc="BGM・ノイズを除去中 (Demucs)...")
+    vocal_audio = os.path.join(OUTPUT_DIR, "vocals.wav")
+    remove_bgm(raw_short, vocal_audio)
 
     progress(0.90, desc="クリーン音声を保存中...")
-    trim_reference_audio(ref_source, TRIMMED_AUDIO_PATH, max_seconds=MAX_REF_SECONDS)
+    trim_reference_audio(vocal_audio, TRIMMED_AUDIO_PATH, max_seconds=MAX_REF_SECONDS)
 
     progress(1.0, desc="完了")
     return TRIMMED_AUDIO_PATH, "✅ クリーン音声を生成しました。再生して確認してください。"
@@ -162,25 +152,15 @@ with gr.Blocks(title="嘘ツアーガイド音声生成") as demo:
     # ── Step 1 ──────────────────────────────────────────────────────
     with gr.Group(elem_classes="step-box"):
         gr.Markdown("## Step 1　クリーン音声を生成する")
-        gr.Markdown("YouTube URL を貼るか、手元の音声ファイルをアップロードしてください。BGM 除去 → 10 秒クリップを自動生成します。")
-        with gr.Row():
-            youtube_url = gr.Textbox(
-                label="YouTube URL",
-                placeholder="https://www.youtube.com/watch?v=...",
-                scale=3,
-            )
-            ref_audio = gr.Audio(
-                label="または音声ファイルをアップロード",
-                type="filepath",
-                scale=2,
-            )
-        with gr.Accordion("YouTube Cookie 設定（bot エラーが出た場合のみ）", open=False):
-            gr.Markdown(
-                "YouTube から「ログインして確認を」エラーが出た場合、ブラウザの Cookie を渡すと解決します。\n\n"
-                "**手順**: Chrome 拡張「[Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)」"
-                "で YouTube を開いた状態でエクスポートし、下にアップロードしてください。"
-            )
-            cookies_upload = gr.File(label="cookies.txt", file_types=[".txt"], type="filepath")
+        gr.Markdown(
+            "参照話者の音声ファイルをアップロードしてください。"
+            "BGM・ノイズを除去して 10 秒のクリーン音声を自動生成します。\n\n"
+            "> **YouTube からの取得方法**: ローカル PC で `yt-dlp -x --audio-format wav <URL>` を実行してダウンロードし、そのファイルをアップロードしてください。"
+        )
+        ref_audio = gr.Audio(
+            label="音声ファイルをアップロード（WAV / MP3 など）",
+            type="filepath",
+        )
         clean_btn = gr.Button("① クリーン音声を生成（BGM除去 → 10秒）", variant="secondary")
         with gr.Row():
             clean_audio_out = gr.Audio(
@@ -225,7 +205,7 @@ with gr.Blocks(title="嘘ツアーガイド音声生成") as demo:
     # ── イベント接続 ─────────────────────────────────────────────────
     clean_btn.click(
         fn=create_clean_audio,
-        inputs=[youtube_url, ref_audio, cookies_upload],
+        inputs=[ref_audio],
         outputs=[clean_audio_out, clean_status],
     )
     transcribe_btn.click(
@@ -240,12 +220,11 @@ with gr.Blocks(title="嘘ツアーガイド音声生成") as demo:
     )
 
     # ── 自動保存（テキスト変更のたびにファイルへ書き出す）──────────────
-    _state_inputs = [youtube_url, script_text, ref_text_box]
-    for component in _state_inputs:
-        component.change(fn=_save_ui_state, inputs=_state_inputs, outputs=[])
+    for component in [script_text, ref_text_box]:
+        component.change(fn=_save_ui_state, inputs=[script_text, ref_text_box], outputs=[])
 
     # ── 起動時に前回の入力を復元 ────────────────────────────────────
-    demo.load(fn=_load_ui_state, inputs=[], outputs=[youtube_url, script_text, ref_text_box])
+    demo.load(fn=_load_ui_state, inputs=[], outputs=[script_text, ref_text_box])
 
 if __name__ == "__main__":
     demo.launch(share=True, css=css)

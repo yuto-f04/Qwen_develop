@@ -115,6 +115,39 @@ add_reading_override("新しい略語", "よみがな")
 | 海外なまり | 日本語でも英語っぽいなまりが出やすい | `ref_text` の精度向上で改善見込み |
 | 文分割の粒度 | 読点(、)でも分割する設計に変更済み。読点後は 150ms、句点後は 400ms の無音 | 解決済み |
 
+## 操作手順：YouTube から参照音声を取得する
+
+Colab 環境では YouTube の bot 対策により yt-dlp でのダウンロードが失敗するため、
+**ローカル PC でダウンロードしてから Colab にアップロードする**運用とする。
+
+### 1. 初回セットアップ（一度だけ）
+
+```powershell
+# yt-dlp インストール
+pip install yt-dlp
+
+# ffmpeg インストール（Windows 11）
+winget install ffmpeg
+# → インストール後、ターミナルを再起動する
+```
+
+### 2. 音声ダウンロード（毎回）
+
+```powershell
+yt-dlp -x --audio-format wav "https://www.youtube.com/watch?v=動画ID"
+```
+
+- カレントディレクトリに `動画タイトル.wav` が保存される
+- ファイル名確認: `ls *.wav`
+
+### 3. Colab の Gradio UI で使う
+
+1. Cell 3（Gradio 起動）を実行して公開 URL を開く
+2. Step 1 の「音声ファイルをアップロード」にダウンロードした `.wav` をドラッグ＆ドロップ
+3. 「① クリーン音声を生成」を押す → Demucs で BGM 除去 → 10 秒クリップが生成される
+
+---
+
 ## 更新ログ
 
 | 日付 | 内容 |
