@@ -14,6 +14,7 @@ def download_audio(youtube_url: str, output_path: str, cookies_path: str = None)
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     cmd = [
         "yt-dlp", "-x", "--audio-format", "wav",
+        "--extractor-args", "youtube:player_client=android,web",
         "-o", output_path,
     ]
     if cookies_path:
