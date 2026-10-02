@@ -1,0 +1,294 @@
+%% ============================================================
+%% 中間報告書（春学期）
+%% 立命館大学情報理工学部 対話デザイン（西原）研究室
+%%
+%% 【コンパイル方法】
+%%   Overleaf: Menu → Compiler → LuaLaTeX を選択してRecompile
+%%
+%% 【埋めるべき箇所】
+%%   ★ でコメントされている行を検索して編集してください
+%%   Ctrl+F で「★」と検索すると全部見つかります
+%% ============================================================
+\documentclass[uplatex,a4paper,10pt,twocolumn]{jsarticle}
+
+\usepackage[top=25mm,bottom=25mm,left=21mm,right=21mm]{geometry}
+\usepackage{otf}
+\usepackage[dvipdfmx]{graphicx}
+\usepackage{url}
+\usepackage{fancyhdr}
+
+%% ========== ヘッダー設定 ==========
+%% 2ページ目以降：中央に「中間報告書」
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[C]{\small\gtfamily 中間報告書}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+%% 1ページ目：左に学部・研究室名、右に提出日
+\fancypagestyle{firstpage}{
+  \fancyhf{}
+  \fancyhead[L]{%
+    \small\rmfamily
+    立命館大学情報理工学部\\
+    対話デザイン（西原）研究室
+  }
+  \fancyhead[R]{%
+    \small\rmfamily
+    中間報告書（\REPORTDATE）
+  }
+  \fancyfoot[L]{%
+    \scriptsize
+    Copyright is held by the author(s).\\
+    The article has been published without reviewing.
+  }
+  \renewcommand{\headrulewidth}{0pt}
+}
+
+%% ★ 提出日を記入してください（例: 2025年7月26日）
+\newcommand{\REPORTDATE}{2025年\quad 月\quad 日}
+
+\begin{document}
+\thispagestyle{firstpage}
+
+%% ========== タイトルブロック（1段組で表示）==========
+\twocolumn[{%
+  \vspace{3\baselineskip}
+  \begin{center}
+    {\Large\gtfamily 街に対して少し詳しくなれる全てが嘘の嘘ツアーの作成}
+
+    \vspace{\baselineskip}
+    {\large\rmfamily 福田\quad 悠人$^\dagger$}
+
+    \vspace{0.5\baselineskip}
+    {\normalsize\rmfamily $^\dagger$ 立命館大学情報理工学部}
+
+    \vspace{0.3\baselineskip}
+    %% ★ メールアドレスを記入してください（例: a) is????@ed.ritsumei.ac.jp）
+    {\normalsize\sffamily a) XXXX@ed.ritsumei.ac.jp}
+  \end{center}
+
+  \vspace{\baselineskip}
+
+  %% 概要（300字程度）
+  {\small
+  \noindent\textbf{概要}\quad
+  本研究では，立命館大学周辺の街を訪れる人が「少し詳しくなれる」体験を提供することを目的として，
+  全てが嘘で構成された「嘘ツアー」の音声コンテンツを自動生成するシステムを開発する．
+  参照音声とその書き起こしテキストを入力として，
+  Qwen3-TTS によるゼロショット音声クローニングを用いることで，
+  特定の話者の声で台本を読み上げる音声を自動生成するパイプラインを構築した．
+  春学期では，音声前処理（BGM 除去・文字起こし・トリミング），
+  台本テキストの読み正規化・文分割，TTS 推論，音声結合からなるシステム全体を実装し，
+  Google Colab 上での動作確認を行った．
+  }
+
+  \vspace{0.5\baselineskip}
+
+  {\small
+  \noindent\textbf{キーワード}\quad
+  音声合成，音声クローニング，Qwen3-TTS，ゼロショット学習，ツアーガイド
+  }
+
+  \vspace{1.5\baselineskip}
+}]
+
+%% ========== 本文 ==========
+
+\section{はじめに}
+
+観光地や大学キャンパスにおける音声ガイドは，
+場所の情報を効果的に伝える手段として広く利用されている．
+しかし，正確な情報を一方向に提供する従来のガイドは，
+聴取者にとって退屈に感じられることもある．
+本研究では，あえて全てが嘘の情報で構成されたツアーガイド音声を生成することで，
+聴衆が笑いながら街に対して親しみを持てる新たな体験の提供を目指す．
+嘘であることをあらかじめ了解したうえで聴取することで，
+「正解は何だろう？」という興味を引き出し，
+結果として街に対して「少し詳しくなれる」効果を狙う．
+
+近年，ニューラルネットワークを用いたテキスト音声変換（Text-to-Speech, TTS）技術の発展により，
+人間に近い自然な音声合成が実現されている~\cite{ref_tts}．
+さらに，参照音声を少量与えるだけで特定の話者の声質を模倣する
+ゼロショット音声クローニング技術~\cite{ref_zero_shot}が登場し，
+任意の人物の声での音声生成が可能となった．
+本研究ではこれらの技術のうち，Alibaba が公開した Qwen3-TTS を採用する．
+
+本稿の 2 章では関連研究を紹介し，
+3 章では春学期に行った研究活動の説明をし，
+4 章では今後の研究活動の計画について述べる．
+
+\section{関連研究}
+
+\subsection{テキスト音声変換（TTS）}
+
+TTS はテキストから音声波形を合成する技術であり，
+ニューラルネットワーク型モデルの登場以降，
+音声品質が飛躍的に向上している~\cite{ref_tts}．
+現在では感情表現や話し方のスタイルを制御できるモデルも登場している．
+
+\subsection{ゼロショット音声クローニング}
+
+ゼロショット音声クローニングは，
+対象話者の大量の音声データを用いた追加学習を行わずに，
+少量の参照音声のみから音声を合成する技術である~\cite{ref_zero_shot}．
+本研究で用いる Qwen3-TTS は，
+参照音声（ref\_audio）とその書き起こしテキスト（ref\_text）を条件として与えることで，
+参照音声話者の声質・話し方を模倣した音声を生成できる~\cite{ref_qwen3tts}．
+
+%% ★ 以下の参考文献に実際の論文情報を記入してください（4章参照）
+
+\section{春学期に行った内容}
+
+春学期では，嘘ツアーガイド音声を自動生成するパイプライン全体を設計・実装した．
+
+\subsection{システム全体の設計}
+
+本システムは，図~\ref{fig:pipeline} に示す 4 つのモジュールから構成される．
+
+\begin{enumerate}
+  \item \textbf{音声前処理モジュール}（\texttt{audio\_preprocess.py}）：
+    参照音声の取得から BGM 除去・文字起こし・トリミングを行う．
+  \item \textbf{読み正規化モジュール}（\texttt{text\_normalizer.py}）：
+    台本テキストの英字・数字・記号を TTS が正しく読めるよう変換する．
+  \item \textbf{台本分割・TTS 生成モジュール}（\texttt{script\_splitter.py}, \texttt{tts\_generate.py}）：
+    台本を句点・読点単位で 1 文ずつに分割し，Qwen3-TTS で文ごとに音声を生成する．
+  \item \textbf{音声結合モジュール}（\texttt{audio\_merge.py}）：
+    各文の音声ファイルを，句点後 0.4 秒・読点後 0.15 秒の無音を挟んで連結し，
+    完成したツアーガイド音声を出力する．
+\end{enumerate}
+
+システム全体は Google Colab 上で GPU を用いて動作する．
+操作インターフェースとして Gradio を用いた Web UI（\texttt{app.py}）を実装し，
+ブラウザから各処理を実行できるようにした．
+
+%% ★ システム全体のパイプライン図を作成したら \includegraphics で挿入してください
+%% \begin{figure}[tb]
+%%   \centering
+%%   \includegraphics[width=\columnwidth]{pipeline.png}
+%%   \caption{システムパイプライン全体像}
+%%   \label{fig:pipeline}
+%% \end{figure}
+
+\subsection{音声前処理モジュール}
+
+参照音声の取得と前処理は以下の手順で行う．
+
+\begin{enumerate}
+  \item \textbf{音声取得}：
+    yt-dlp を用いてローカル PC で YouTube 等から音声を MP3 形式で取得したのち，
+    Colab にアップロードする．
+    Colab 環境では YouTube の bot 対策によりダウンロードが失敗するため，
+    この運用とした．
+  \item \textbf{BGM 除去}：
+    音源分離モデル Demucs を用いてボーカル成分のみを抽出し，
+    BGM・環境音を除去する．
+  \item \textbf{文字起こし}：
+    Whisper を用いて前処理済み音声をテキストに書き起こし，
+    ref\_text を自動生成する．
+  \item \textbf{トリミング}：
+    参照音声から冒頭 10 秒を切り出す（CUDA メモリ上限に対応するため）．
+\end{enumerate}
+
+\subsection{読み正規化モジュール}
+
+TTS モデルが英字・記号・数字を誤読しないよう，
+台本テキストを事前にひらがなに変換する読み正規化モジュールを実装した．
+本モジュールは優先度順に適用される 2 階層の構造を持つ（表~\ref{tbl:normalizer}）．
+
+\begin{table}[t]
+  \caption{読み正規化のルール一覧（優先度順）}
+  \label{tbl:normalizer}
+  \begin{tabular}{lll}
+    \hline
+    優先度 & 対象 & 例 \\
+    \hline
+    1 & 例外辞書 & BARCO→バルコ \\
+    2 & コード表記 & H121→エイチひゃくにじゅういち \\
+    3 & 時刻 & 12:40→じゅうにじよんじゅっぷん \\
+    4 & 年号 & 2025年→にせんにじゅうごねん \\
+    5 & 数字＋単位 & 200席→にひゃくせき \\
+    6 & フォールバック & XYZ→エックスワイゼット \\
+    \hline
+  \end{tabular}
+\end{table}
+
+本モジュールの正規化ルールに対して合計 86 件のテストを作成し，全件通過を確認した．
+また，台本固有の固有名詞が現れた際に例外辞書へ追記できる API を設けた．
+
+\subsection{TTS 生成モジュール}
+
+台本テキストを句点・読点で分割した各文に対して，
+Qwen3-TTS により音声を 1 文 1 ファイルとして順次生成する．
+長い台本の生成中に処理が中断された場合に備え，
+既に生成済みの音声ファイルを検出して途中から再開できる機能も実装した．
+
+\subsection{Gradio UI の実装}
+
+Colab 上でブラウザから一連の処理を操作できるよう，
+Gradio を用いた Web UI（\texttt{app.py}）を実装した．
+UI は以下の 3 ステップで構成される．
+
+\begin{enumerate}
+  \item \textbf{Step 1}：参照音声のアップロードと BGM 除去・トリミング
+  \item \textbf{Step 2}：台本テキストの入力と読み正規化・文分割プレビュー
+  \item \textbf{Step 3}：TTS 推論と音声結合・ダウンロード
+\end{enumerate}
+
+\subsection{動作確認}
+
+実装したシステムの動作確認として，
+YouTube から取得した音声を参照音声として用いた音声合成実験を行った．
+台本テキストを入力とし，生成された各文の音声を結合することで，
+一連のツアーガイド音声を生成できることを確認した．
+
+\section{今後の計画}
+
+\subsection{話者の選定}
+
+本研究の最終的な成果物であるツアー体験において，
+研究室内での意見収集の結果，「女性の声がよい」という意見が多数を占めた．
+そのため後期では，提供された複数の候補音声の中から本番用の話者を選定し，
+その声での音声合成を行う．
+
+\subsection{嘘ツアーコンテンツの作成}
+
+話者選定後，立命館大学周辺の街を題材とした嘘ツアーの台本を整備し，
+システム全体を通じて一連のツアーガイド音声を完成させる．
+
+\subsection{評価実験とフィードバックによる改善}
+
+作成したツアーガイド音声を用いて研究室内でのデモ体験を実施し，
+体験者からフィードバックを収集する．
+そのフィードバックをもとに台本内容・音声品質・UI の改善を繰り返す．
+
+%% ========== 参考文献 ==========
+
+\begin{thebibliography}{9}
+
+  %% ★ 以下の3件に実際の論文情報を記入してください
+  %% -----------------------------------------------
+  %% 記入例（日本語論文）：
+  %%   \bibitem{ラベル}
+  %%     著者名：論文タイトル，掲載誌/会議名，Vol.XX，No.XX，pp.XX--XX (年).
+  %%
+  %% 記入例（英語論文）：
+  %%   \bibitem{ラベル}
+  %%     LastName, F. and LastName, F.: Title, Proc. Conference, pp. XX--XX (Year).
+  %% -----------------------------------------------
+
+  %% [1] TTS の代表的な先行研究（例：Tacotron 2, VITS, NaturalSpeech など）
+  \bibitem{ref_tts}
+    TODO: TTS に関する論文情報を記入
+
+  %% [2] ゼロショット音声クローニングの先行研究（例：VALL-E, YourTTS など）
+  \bibitem{ref_zero_shot}
+    TODO: ゼロショット音声クローニングに関する論文情報を記入
+
+  %% [3] Qwen3-TTS の技術レポート（Alibaba / Qwen チーム）
+  \bibitem{ref_qwen3tts}
+    TODO: Qwen3-TTS の公式技術レポート・論文情報を記入
+
+\end{thebibliography}
+
+\end{document}
