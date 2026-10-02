@@ -93,7 +93,7 @@ def run_transcription(progress=gr.Progress()):
 # ------------------------------------------------------------------ #
 #  Step 3: 音声生成                                                    #
 # ------------------------------------------------------------------ #
-def generate_audio(script_text: str, ref_text: str, resume: bool, progress=gr.Progress()):
+def generate_audio(script_text: str, ref_text: str, resume: bool, filename: str, progress=gr.Progress()):
     """台本テキストと文字起こしを使って TTS 音声を生成・結合する。"""
     if not os.path.exists(TRIMMED_AUDIO_PATH):
         return None, "⚠ 先に Step 1 でクリーン音声を生成してください。"
@@ -101,6 +101,11 @@ def generate_audio(script_text: str, ref_text: str, resume: bool, progress=gr.Pr
         return None, "⚠ 先に Step 2 で文字起こしを実行してください。"
     if not script_text.strip():
         return None, "⚠ 台本テキストを入力してください。"
+
+    safe_name = filename.strip().replace("/", "_").replace("\\", "_") or "tour_guide"
+    if not safe_name.endswith(".wav"):
+        safe_name += ".wav"
+    output_path = os.path.join(OUTPUT_DIR, safe_name)
 
     if not resume:
         # 最初からやり直す場合のみ既存ファイルを削除
@@ -133,10 +138,10 @@ def generate_audio(script_text: str, ref_text: str, resume: bool, progress=gr.Pr
     )
 
     progress(0.95, desc="音声ファイルを結合中...")
-    merge_audio_files(list(zip(audio_files, silences)), FINAL_OUTPUT_PATH)
+    merge_audio_files(list(zip(audio_files, silences)), output_path)
 
     progress(1.0, desc="完了")
-    return FINAL_OUTPUT_PATH, f"✅ 完了！ {len(segments)} フレーズを生成しました。"
+    return output_path, f"✅ 完了！ {len(segments)} フレーズを生成しました。\n保存先: {safe_name}"
 
 
 # ------------------------------------------------------------------ #
@@ -194,6 +199,11 @@ with gr.Blocks(title="嘘ツアーガイド音声生成") as demo:
             lines=12,
             placeholder="ここに台本を貼り付けてください。",
         )
+        filename_input = gr.Textbox(
+            label="保存ファイル名（.wav は自動でつきます）",
+            placeholder="例: campus_tour_01",
+            value="tour_guide",
+        )
         resume_check = gr.Checkbox(
             label="途中から再開する（生成済みのフレーズをスキップ）",
             value=False,
@@ -220,7 +230,7 @@ with gr.Blocks(title="嘘ツアーガイド音声生成") as demo:
     )
     generate_btn.click(
         fn=generate_audio,
-        inputs=[script_text, ref_text_box, resume_check],
+        inputs=[script_text, ref_text_box, resume_check, filename_input],
         outputs=[output_audio, generate_status],
     )
 
