@@ -29,11 +29,11 @@ from src.text_normalizer import normalize_for_tts
 # ------------------------------------------------------------------ #
 #  UI 状態の自動保存・復元                                             #
 # ------------------------------------------------------------------ #
-def _save_ui_state(script_val: str, ref_text_val: str) -> None:
+def _save_ui_state(script_val: str, ref_text_val: str, filename_val: str) -> None:
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     with open(UI_STATE_PATH, "w", encoding="utf-8") as f:
         json.dump(
-            {"script_text": script_val, "ref_text": ref_text_val},
+            {"script_text": script_val, "ref_text": ref_text_val, "filename": filename_val},
             f, ensure_ascii=False, indent=2,
         )
 
@@ -43,10 +43,10 @@ def _load_ui_state():
         try:
             with open(UI_STATE_PATH, "r", encoding="utf-8") as f:
                 s = json.load(f)
-            return s.get("script_text", ""), s.get("ref_text", "")
+            return s.get("script_text", ""), s.get("ref_text", ""), s.get("filename", "tour_guide")
         except Exception:
             pass
-    return "", ""
+    return "", "", "tour_guide"
 
 
 # ------------------------------------------------------------------ #
@@ -228,18 +228,28 @@ with gr.Blocks(title="嘘ツアーガイド音声生成") as demo:
         inputs=[],
         outputs=[ref_text_box, transcribe_status],
     )
+    # ボタンを押した瞬間に前回の結果をクリア → その後に生成実行
     generate_btn.click(
+        fn=lambda fname: (None, f"⏳ 生成中: {fname.strip() or 'tour_guide'}.wav"),
+        inputs=[filename_input],
+        outputs=[output_audio, generate_status],
+        queue=False,
+    ).then(
         fn=generate_audio,
         inputs=[script_text, ref_text_box, resume_check, filename_input],
         outputs=[output_audio, generate_status],
     )
 
     # ── 自動保存（テキスト変更のたびにファイルへ書き出す）──────────────
-    for component in [script_text, ref_text_box]:
-        component.change(fn=_save_ui_state, inputs=[script_text, ref_text_box], outputs=[])
+    for component in [script_text, ref_text_box, filename_input]:
+        component.change(
+            fn=_save_ui_state,
+            inputs=[script_text, ref_text_box, filename_input],
+            outputs=[],
+        )
 
     # ── 起動時に前回の入力を復元 ────────────────────────────────────
-    demo.load(fn=_load_ui_state, inputs=[], outputs=[script_text, ref_text_box])
+    demo.load(fn=_load_ui_state, inputs=[], outputs=[script_text, ref_text_box, filename_input])
 
 if __name__ == "__main__":
     demo.launch(share=True, css=css)
