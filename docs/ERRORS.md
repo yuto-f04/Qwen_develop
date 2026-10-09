@@ -48,6 +48,23 @@
 
 ---
 
+## 2026-10-09 ModuleNotFoundError: No module named 'qwen_tts' (Colab 環境)
+
+- **発生状況**: Colab 上で GPU 接続済みの状態で「③ 音声生成開始」を実行したとき。Demucs は成功するが TTS でモジュール未発見エラーが出る
+- **エラーメッセージ**:
+  ```
+  ModuleNotFoundError: No module named 'qwen_tts'
+  File "/content/Qwen_develop/src/tts_generate.py", line 27, in _load_model
+      from qwen_tts import Qwen3TTSModel
+  ```
+- **原因**: Cell 2 の `pip install -q -r requirements.txt` で `qwen-tts` のインストールが失敗していたが、`-q`（quiet）フラグのせいでエラーが無音でスルーされていた。Python 3.13 向けのホイールが存在しないか、パッケージ名の解決に失敗した可能性が高い
+- **解決策**:
+  1. `setup_colab.py` に `install_qwen_tts()` 関数を追加。`qwen-tts` を先に試し、失敗時は GitHub から直接インストールするフォールバックを実装
+  2. `colab_runner.ipynb` Cell 2 の `pip install -q` から `-q` を除去し、インストールログを可視化
+- **再発防止**: パッケージインストールに `-q` を使わない。GPU 依存パッケージは `setup_colab.py` で明示的にインストール確認する
+
+---
+
 ## 2026-07-04 yt-dlp が YouTube の bot 判定でダウンロード失敗 (Colab 環境)
 
 - **発生状況**: Colab 上で Gradio UI を起動し、YouTube URL を入力して「① クリーン音声を生成」を押したとき

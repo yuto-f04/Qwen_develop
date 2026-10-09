@@ -88,7 +88,39 @@ def install_quickjs():
         print(f"quickjs: ⚠️ インストール失敗: {r.stderr[-200:]}")
 
 
+def install_qwen_tts():
+    """qwen-tts を確認・インストールする。"""
+    try:
+        import qwen_tts  # noqa: F401
+        print("qwen-tts: ✅ インストール済み（スキップ）")
+        return
+    except ImportError:
+        pass
+
+    print("qwen-tts: インストール中...")
+    r = subprocess.run(
+        [sys.executable, "-m", "pip", "install", "qwen-tts"],
+        capture_output=True, text=True,
+    )
+    if r.returncode == 0:
+        print("qwen-tts: ✅ インストール成功")
+    else:
+        print(f"qwen-tts: ⚠️ pip install 失敗\n--- stdout ---\n{r.stdout[-500:]}\n--- stderr ---\n{r.stderr[-500:]}")
+        print("qwen-tts: GitHub から直接インストールを試みます...")
+        r2 = subprocess.run(
+            [sys.executable, "-m", "pip", "install",
+             "git+https://github.com/QwenLM/Qwen3-TTS.git"],
+            capture_output=True, text=True,
+        )
+        if r2.returncode == 0:
+            print("qwen-tts: ✅ GitHub からインストール成功")
+        else:
+            print(f"qwen-tts: ❌ インストール失敗\n{r2.stderr[-500:]}")
+            print("手動で以下を実行してください: pip install qwen-tts")
+
+
 if __name__ == "__main__":
     install_sox()
     install_quickjs()
+    install_qwen_tts()
     install_flash_attn()
