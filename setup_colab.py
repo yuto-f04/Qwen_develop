@@ -88,6 +88,24 @@ def install_quickjs():
         print(f"quickjs: ⚠️ インストール失敗: {r.stderr[-200:]}")
 
 
+def install_demucs():
+    """demucs を確認・インストールする。"""
+    try:
+        import demucs  # noqa: F401
+        print("demucs: ✅ インストール済み（スキップ）")
+        return
+    except ImportError:
+        pass
+    r = subprocess.run(
+        [sys.executable, "-m", "pip", "install", "-q", "demucs"],
+        capture_output=True, text=True,
+    )
+    if r.returncode == 0:
+        print("demucs: ✅ インストール成功")
+    else:
+        print(f"demucs: ❌ インストール失敗\n{r.stderr[-300:]}")
+
+
 def install_qwen_tts():
     """qwen-tts を確認・インストールする。"""
     try:
@@ -121,6 +139,7 @@ def install_qwen_tts():
 
 if __name__ == "__main__":
     install_sox()
+    install_demucs()
     install_quickjs()
     install_qwen_tts()
     install_flash_attn()

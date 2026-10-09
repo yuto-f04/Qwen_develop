@@ -107,9 +107,11 @@ def remove_bgm(input_path: str, output_path: str) -> str:
     htdemucs/{入力ファイル名}/vocals.wav を生成するため、
     処理後に output_path へ移動する。
     """
+    import sys
+
     out_dir = os.path.dirname(os.path.abspath(output_path))
     os.makedirs(out_dir, exist_ok=True)
-    cmd = ["python", "-m", "demucs", "--two-stems=vocals", "-o", out_dir, input_path]
+    cmd = [sys.executable, "-m", "demucs", "--two-stems=vocals", "-o", out_dir, input_path]
     subprocess.run(cmd, check=True)
 
     # Demucs の実際の出力先: out_dir/htdemucs/{input_stem}/vocals.wav
