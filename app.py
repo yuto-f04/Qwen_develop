@@ -10,6 +10,8 @@ import gradio as gr
 
 from src.audio_merge import merge_audio_files
 from src.audio_preprocess import (
+    extract_segments,
+    parse_time_ranges,
     remove_bgm,
     transcribe,
     trim_reference_audio,
@@ -52,17 +54,29 @@ def _load_ui_state():
 # ------------------------------------------------------------------ #
 #  Step 1: クリーン音声を生成                                          #
 # ------------------------------------------------------------------ #
-def create_clean_audio(ref_audio_file, progress=gr.Progress()):
-    """アップロードされた音声ファイルから BGM を除去し 10 秒にトリミングする。"""
+def create_clean_audio(ref_audio_file, time_ranges_text: str = "", progress=gr.Progress()):
+    """アップロードされた音声ファイルから BGM を除去し 10 秒にトリミングする。
+
+    time_ranges_text: "0:30-0:45, 1:20-1:35" のような時間範囲指定（省略時は先頭から10秒）
+    """
     if not ref_audio_file:
         return None, "⚠ 音声ファイルをアップロードしてください。"
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
+    raw_short = os.path.join(OUTPUT_DIR, "raw_short.wav")
 
     # Demucs の前に短く切り取る → 全体を処理せずに済むので大幅に高速化
-    progress(0.20, desc=f"音声を {MAX_REF_SECONDS} 秒にトリミング中...")
-    raw_short = os.path.join(OUTPUT_DIR, "raw_short.wav")
-    trim_reference_audio(ref_audio_file, raw_short, max_seconds=MAX_REF_SECONDS)
+    try:
+        segments = parse_time_ranges(time_ranges_text)
+    except ValueError as e:
+        return None, f"⚠ 時間範囲の指定が不正です: {e}"
+
+    if segments:
+        progress(0.20, desc="指定した時間範囲を抽出中...")
+        extract_segments(ref_audio_file, raw_short, segments, max_seconds=MAX_REF_SECONDS)
+    else:
+        progress(0.20, desc=f"音声を {MAX_REF_SECONDS} 秒にトリミング中...")
+        trim_reference_audio(ref_audio_file, raw_short, max_seconds=MAX_REF_SECONDS)
 
     progress(0.50, desc="BGM・ノイズを除去中 (Demucs)...")
     vocal_audio = os.path.join(OUTPUT_DIR, "vocals.wav")
@@ -167,6 +181,11 @@ with gr.Blocks(title="嘘ツアーガイド音声生成") as demo:
             label="音声ファイルをアップロード（WAV / MP3 など）",
             type="filepath",
         )
+        time_ranges_input = gr.Textbox(
+            label="抽出する時間範囲（省略すると先頭から10秒）",
+            placeholder="例: 0:30-0:45, 1:20-1:35　または　30-45, 80-95",
+            value="",
+        )
         clean_btn = gr.Button("① クリーン音声を生成（BGM除去 → 10秒）", variant="secondary")
         with gr.Row():
             clean_audio_out = gr.Audio(
@@ -220,7 +239,7 @@ with gr.Blocks(title="嘘ツアーガイド音声生成") as demo:
     # ── イベント接続 ─────────────────────────────────────────────────
     clean_btn.click(
         fn=create_clean_audio,
-        inputs=[ref_audio],
+        inputs=[ref_audio, time_ranges_input],
         outputs=[clean_audio_out, clean_status],
     )
     transcribe_btn.click(

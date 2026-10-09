@@ -1,8 +1,85 @@
 import os
+import re
 import shutil
 import subprocess
 
 from src.config import MAX_REF_SECONDS, WHISPER_MODEL_SIZE
+
+
+def parse_time_ranges(text: str) -> list:
+    """時間範囲文字列をパースして (start_sec, end_sec) のリストを返す。
+
+    受け付けるフォーマット:
+        "0:30-0:45, 1:20-1:35"  → [(30.0, 45.0), (80.0, 95.0)]
+        "30-45, 80-95"          → [(30.0, 45.0), (80.0, 95.0)]
+        "~" も区切りとして使用可能。
+    空文字列の場合は空リストを返す。
+    """
+    if not text or not text.strip():
+        return []
+
+    def _to_seconds(s: str) -> float:
+        s = s.strip()
+        if ":" in s:
+            parts = s.split(":")
+            return float(parts[0]) * 60 + float(parts[1])
+        return float(s)
+
+    ranges = []
+    for part in text.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        m = re.match(r"^([\d:\.]+)\s*[-~]\s*([\d:\.]+)$", part)
+        if not m:
+            raise ValueError(
+                f"時間範囲のフォーマットが不正です: '{part}'\n"
+                "例: '0:30-0:45' または '30-45'"
+            )
+        start = _to_seconds(m.group(1))
+        end = _to_seconds(m.group(2))
+        if start >= end:
+            raise ValueError(f"開始時刻が終了時刻以上です: {start} >= {end}")
+        ranges.append((start, end))
+
+    return ranges
+
+
+def extract_segments(
+    input_path: str,
+    output_path: str,
+    segments: list,
+    max_seconds: int = MAX_REF_SECONDS,
+) -> str:
+    """指定した時間範囲のセグメントを抽出・結合して書き出す (CPUのみ)。
+
+    segments: [(start_sec, end_sec), ...] のリスト
+    合計が max_seconds を超えた場合はそこで打ち切る。
+    """
+    import numpy as np
+    import soundfile as sf
+
+    data, sr = sf.read(input_path)
+    max_samples = int(max_seconds * sr)
+
+    extracted = []
+    total_samples = 0
+    for start_sec, end_sec in segments:
+        start_sample = min(int(start_sec * sr), len(data))
+        end_sample = min(int(end_sec * sr), len(data))
+        chunk = data[start_sample:end_sample]
+        remaining = max_samples - total_samples
+        if remaining <= 0:
+            break
+        if len(chunk) > remaining:
+            chunk = chunk[:remaining]
+        extracted.append(chunk)
+        total_samples += len(chunk)
+
+    result = np.concatenate(extracted, axis=0) if extracted else data[:max_samples]
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    sf.write(output_path, result, sr)
+    return output_path
 
 
 def download_audio(youtube_url: str, output_path: str, cookies_path: str = None) -> str:
