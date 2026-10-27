@@ -19,10 +19,10 @@ class TestSplitIntoSentences:
         result = split_into_sentences("Really?OK.")
         assert result == [("Really?", 400), ("OK.", 400)]
 
-    def test_split_on_toten(self):
-        # 読点でも分割する。読点後は短い無音になる
+    def test_toten_does_not_split(self):
+        # 読点では分割しない。1文まるごとモデルに渡す
         result = split_into_sentences("赤い、青い。白い。")
-        assert result == [("赤い、", 150), ("青い。", 400), ("白い。", 400)]
+        assert result == [("赤い、青い。", 400), ("白い。", 400)]
 
     def test_delimiter_remains_at_end(self):
         result = split_into_sentences("はい。いいえ。")
@@ -51,25 +51,22 @@ class TestSplitIntoSentences:
         assert result == [("本当に？", 400), ("ありがとう！", 400), ("よかった。", 400)]
 
     def test_long_sentence_with_toten(self):
-        # 読点で複数に分割され、それぞれ短い無音になる
+        # 読点は分割しない。句点だけで区切る
         result = split_into_sentences("皆さん、本日は、キャンパスへようこそ。ありがとう。")
         assert result == [
-            ("皆さん、", 150),
-            ("本日は、", 150),
-            ("キャンパスへようこそ。", 400),
+            ("皆さん、本日は、キャンパスへようこそ。", 400),
             ("ありがとう。", 400),
         ]
 
-    def test_comma_silence_shorter_than_period_silence(self):
-        # 読点後 < 句点後 であることを確認
-        result = split_into_sentences("Aは、Bである。")
+    def test_all_silence_values_are_equal(self):
+        # すべて句点後の無音 SILENCE_MS で統一される
+        result = split_into_sentences("Aは、Bである。Cだ。")
         silences = [ms for _, ms in result]
-        assert silences == [150, 400]
-        assert silences[0] < silences[1]
+        assert all(ms == 400 for ms in silences)
 
     def test_mixed_toten_and_kuten(self):
         result = split_into_sentences("この施設は、2025年に完成した。定員は200席だ。")
         texts = [t for t, _ in result]
         silences = [ms for _, ms in result]
-        assert texts == ["この施設は、", "2025年に完成した。", "定員は200席だ。"]
-        assert silences == [150, 400, 400]
+        assert texts == ["この施設は、2025年に完成した。", "定員は200席だ。"]
+        assert silences == [400, 400]

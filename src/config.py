@@ -2,16 +2,19 @@ import os
 
 # 音声結合時に挟む無音の長さ (ミリ秒)
 SILENCE_MS = 400        # 句点(。！？)後
-SILENCE_COMMA_MS = 150  # 読点(、)後
 
 # 参照音声の最大秒数 (これを超えたらトリミング)
 MAX_REF_SECONDS = 10
 
-# Whisper モデルサイズ
-WHISPER_MODEL_SIZE = "base"
+# Whisper モデルサイズ（large-v3 を推奨。base は日本語精度が低い）
+WHISPER_MODEL_SIZE = "large-v3"
 
 # Qwen3-TTS モデルID
 TTS_MODEL_ID = "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
+
+# TTS 生成パラメータ
+TTS_SEED = 42           # 再現性のために固定
+TTS_TEMPERATURE = 0.7   # 公式デフォルト(0.9)より少し低めで安定
 
 # 出力ディレクトリ
 OUTPUT_DIR = "output"

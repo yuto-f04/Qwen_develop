@@ -5,7 +5,7 @@ GPU/モデルは unittest.mock でモック化し、入出力の形式のみを�
 """
 import os
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import numpy as np
 import pytest
@@ -16,9 +16,8 @@ DUMMY_WAV = np.zeros(DUMMY_SR, dtype=np.float32)  # 1秒のダミー音声
 
 
 def _make_torch_mock() -> MagicMock:
-    """torch.no_grad() コンテキストマネージャをモックする。"""
+    """torch をモックする。manual_seed・no_grad を追跡できるようにする。"""
     mock_torch = MagicMock()
-    # MagicMock は __enter__/__exit__ を自動生成するので追加設定不要
     return mock_torch
 
 
@@ -70,7 +69,46 @@ class TestGenerateSentenceAudio:
             language="Japanese",
             ref_audio="ref.wav",
             ref_text="テスト",
+            temperature=0.7,
         )
+
+    def test_manual_seed_is_called(self, tmp_path):
+        from src.tts_generate import generate_sentence_audio
+
+        out = str(tmp_path / "out.wav")
+        model = _make_model_mock()
+        torch_mock = _make_torch_mock()
+
+        with patch.dict(sys.modules, {"torch": torch_mock}):
+            generate_sentence_audio("こんにちは。", "ref.wav", out, model=model, seed=42)
+
+        torch_mock.manual_seed.assert_called_once_with(42)
+
+    def test_custom_seed_is_used(self, tmp_path):
+        from src.tts_generate import generate_sentence_audio
+
+        out = str(tmp_path / "out.wav")
+        model = _make_model_mock()
+        torch_mock = _make_torch_mock()
+
+        with patch.dict(sys.modules, {"torch": torch_mock}):
+            generate_sentence_audio("こんにちは。", "ref.wav", out, model=model, seed=123)
+
+        torch_mock.manual_seed.assert_called_once_with(123)
+
+    def test_custom_temperature_is_used(self, tmp_path):
+        from src.tts_generate import generate_sentence_audio
+
+        out = str(tmp_path / "out.wav")
+        model = _make_model_mock()
+
+        with patch.dict(sys.modules, {"torch": _make_torch_mock()}):
+            generate_sentence_audio(
+                "こんにちは。", "ref.wav", out, model=model, temperature=0.65
+            )
+
+        _, kwargs = model.generate_voice_clone.call_args
+        assert kwargs["temperature"] == 0.65
 
     def test_creates_output_dir(self, tmp_path):
         from src.tts_generate import generate_sentence_audio
@@ -141,7 +179,7 @@ class TestGenerateAll:
             with patch("src.tts_generate._load_model", return_value=model):
                 generate_all(sentences, "ref.wav", out_dir, resume=True)
 
-        # スキップされたので 0001.wav への generate_voice_clone 呼び出しは2回だけ
+        # スキップされたので generate_voice_clone の呼び出しは2回だけ
         assert model.generate_voice_clone.call_count == 2
 
     def test_resume_false_regenerates_all(self, tmp_path):

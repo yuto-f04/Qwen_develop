@@ -5,7 +5,7 @@ from typing import List
 import numpy as np
 import soundfile as sf
 
-from src.config import TTS_MODEL_ID
+from src.config import TTS_MODEL_ID, TTS_SEED, TTS_TEMPERATURE
 
 _cached_model = None  # プロセス内でモデルを使い回す
 
@@ -49,11 +49,14 @@ def generate_sentence_audio(
     output_path: str,
     model=None,
     ref_text: str = "",
+    seed: int = TTS_SEED,
+    temperature: float = TTS_TEMPERATURE,
 ) -> str:
     """1文を参照音声の声で Qwen3-TTS により音声生成する (GPU依存)。
 
     model が None の場合は _load_model() でロードする。
     生成した音声を output_path に書き出し、そのパスを返す。
+    seed を固定することで同じテキストから再現性のある音声を得られる。
     """
     import logging
     import warnings  # GPU依存 - 関数内でのみインポート
@@ -61,6 +64,8 @@ def generate_sentence_audio(
 
     if model is None:
         model = _load_model()
+
+    torch.manual_seed(seed)
 
     with torch.no_grad(), warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -70,6 +75,7 @@ def generate_sentence_audio(
             language="Japanese",
             ref_audio=reference_audio_path,
             ref_text=ref_text,
+            temperature=temperature,
         )
 
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
@@ -84,6 +90,8 @@ def generate_all(
     ref_text: str = "",
     progress_callback=None,
     resume: bool = False,
+    seed: int = TTS_SEED,
+    temperature: float = TTS_TEMPERATURE,
 ) -> List[str]:
     """文リストを順番にすべて音声化し、生成した音声ファイルパスのリストを返す。
 
@@ -114,6 +122,8 @@ def generate_all(
             output_path,
             model=model,
             ref_text=ref_text,
+            seed=seed,
+            temperature=temperature,
         )
         output_paths.append(output_path)
 
