@@ -37,3 +37,7 @@ Thumbs.db
 
 # モデルキャッシュ
 *.cache/
+
+# 実験データ（個人情報を含むため絶対にコミットしない）
+data/
+output/analysis/

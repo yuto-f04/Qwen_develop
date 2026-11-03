@@ -93,6 +93,24 @@ add_reading_override("新しい略語", "よみがな")
 ```
 新しい台本で自動判定が難しい固有名詞が出てきたら、ここに追記する運用とする。
 
+### Phase 6: 事後アンケート分析プログラム
+- [x] `src/config.py` に分析セクション追加（列名マッピング・しきい値・嘘11か所）
+- [x] `src/analysis/load.py` — 読み込み・NFKC正規化・重複除去・ペア突き合わせ・グループ判定
+- [x] `src/analysis/scoring.py` — エンタメ体験得点・Cronbach's α・主指標選択
+- [x] `src/analysis/stats_tests.py` — ウィルコクソン・マン・ホイットニー・Cliff's δ・効果量・CI
+- [x] `src/analysis/figures.py` — 対応図・箱ひげ図・10項目棒グラフ・違和感積み上げグラフ
+- [x] `src/analysis/report.py` — 分析全体の実行・レポート生成・CSV書き出し
+- [x] `run_analysis.py` — エントリポイント（引数省略可）
+- [x] `scripts/make_dummy_data.py` — 架空20人×2回答ダミーデータ生成
+- [x] `requirements-analysis.txt` 作成
+- [x] `tests/test_analysis_load.py` — 全テスト通過
+- [x] `tests/test_analysis_scoring.py` — 全テスト通過
+- [x] `tests/test_analysis_stats.py` — 全テスト通過
+- [x] `tests/test_analysis_report.py` — エンドツーエンド全テスト通過
+- [x] `pytest tests/` 全197件通過確認
+- [x] `.gitignore` に `data/` と `output/analysis/` 追加
+- [x] `README.md` に分析の使い方追記
+
 ### Phase 4: Gradio UI 統合
 - [ ] app.py の UI 動作確認 (Colab 上で share=True で起動)
 - [ ] YouTube URL 入力 → 音声取得フロー確認
@@ -156,3 +174,4 @@ yt-dlp -x --audio-format wav "https://www.youtube.com/watch?v=動画ID"
 | 2026-07-03 | Phase 2・Phase 3 完了: CPU・GPU モック側のテストを同時実装・全通過 |
 | 2026-07-03 | Phase 3.5 完了: 読み正規化モジュール実装。汎用2階層設計(例外辞書+パターン6種)、全86テスト通過 |
 | 2026-10-27 | 音声品質改善: 句点のみ分割(読点でのセグメント細切れを廃止)・Seed固定(TTS_SEED=42)・temperature調整(0.7)・Whisper large-v3 対応。全120テスト通過 |
+| 2026-11-03 | Phase 6 完了: 事後アンケート分析プログラム追加。TDD で全197テスト通過。run_analysis.py + src/analysis/ + ダミーデータ生成スクリプト |

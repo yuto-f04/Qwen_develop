@@ -49,7 +49,7 @@ Qwen3-TTS のゼロショット音声クローン（ref_audio + ref_text）を�
 
 ### ドキュメントルール
 
-- **タスク開始前に `docs/ERRORS.md` と `docs/PROGRESS.md` を必ず読み込む。**
+- **タスク開始前に `docs/status.md`・`docs/ERRORS.md`・`docs/PROGRESS.md` を必ず読み込む。**
 - エラーが出て解決したら、必ず `docs/ERRORS.md` に以下の形式で追記する:
   ```
   ## [日付] エラータイトル
@@ -82,7 +82,8 @@ Qwen_develop/
 ├── .gitignore
 ├── docs/
 │   ├── PROGRESS.md        # 進捗管理（フェーズ・チェックボックス）
-│   └── ERRORS.md          # エラー記録（発生→解決の都度追記）
+│   ├── ERRORS.md          # エラー記録（発生→解決の都度追記）
+│   └── status.md          # システム現在地スナップショット（作業前に確認・更新）
 ├── src/
 │   ├── __init__.py
 │   ├── config.py          # パラメータ集約（ここだけ変更すれば全体に反映）
