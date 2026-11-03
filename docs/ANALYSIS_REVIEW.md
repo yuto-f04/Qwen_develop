@@ -142,6 +142,55 @@ scipy が正確法を使う場合（小サンプル）、`zstatistic` 属性が�
 
 ---
 
-## 修正後の結果（未記入）
+## 修正後の結果
 
-修正実施後にここに追記する。
+**修正完了日**: 2026-11-03  
+**テスト結果**: 225 passed（0 failed, 0 error）
+
+### 致命・重要バグの修正状況
+
+| # | 修正内容 | 対象ファイル | 確認方法 |
+|---|----------|------------|---------|
+| F1 | `_read_csv_auto_encoding` を追加し utf-8-sig→cp932 の順で試み、不明なら ValueError | load.py | TestLoadResponsesEncoding 4件 |
+| F2 | `len(df_paired) == 0` を早期チェックし ValueError + report.md にエラー出力 | report.py | TestEmptyDataDoesNotCrash 4件 |
+| F3 | `normalize_name` を直渡しに変更し NaN→"" 、空欄行を警告付きで除外 | load.py | TestBlankNameFiltering 6件 |
+| F4 | `parse_timestamp` 関数追加（午前/午後→24時間変換）、`na_position="first"` で NaT を最古扱いに | load.py | TestParseTimestamp 7件 |
+| I1 | `mann_whitney_u(grp2_first, grp1_first)` に引数順を修正、report に「正の値は条件Bが高い」注記追加 | report.py | TestMannWhitneyUDirectionConvention 2件 |
+| I2 | `_parse_lie_ids` で複数区切り文字（`,、，/・` + 空白）分割後に完全一致照合、NFKC正規化 | report.py | TestLieIdMatching 4件 |
+| I3 | `detect_round_inconsistency` 戻り値を `List[Tuple[str,str]]` に変更、report.py 側でアンパック | load.py, report.py | TestDetectRoundInconsistency::test_returns_name_message_tuples |
+
+### 修正後の 27 パターン再確認
+
+| # | パターン | 修正後の動作 |
+|---|---------|-----------|
+| 3 | CP932/Shift-JIS | 正常読み込み + 「cp932 で読み込んだ」警告 ✓ |
+| 5 | ヘッダーだけ（0件）| ValueError（分かりやすいメッセージ）、トレースバックなし ✓ |
+| 6 | 1件だけ | 同上 ✓ |
+| 9b | 午後タイムスタンプ | `parse_timestamp` で正しく変換（NaT にならない）✓ |
+| 9c | NaT + 重複 | NaT 行を最古扱いにして新しい有効タイムスタンプの行を残す ✓ |
+| 15 | 両方とも条件A | ValueError（分かりやすいメッセージ）、トレースバックなし ✓ |
+| 17b | 空欄氏名2件（条件A+B） | 2件除外 + 「氏名が空欄の回答 2 件を除外しました」警告 ✓ |
+| 他20件 | — | 修正前と変わらず正常動作 ✓ |
+
+### I1 統計値の変化
+
+Cliff's δ の符号規約を「B>A=正」に修正したため、ダミーデータでの結果が変化する:
+
+| 統計量 | 修正前 | 修正後 | 備考 |
+|--------|--------|--------|------|
+| Cliff's δ（1回目比較） | −0.820 | **+0.820** | グループ2（条件B1回目）のほうが高いことを正しく表す |
+| U 統計量 | 9.000 | 9.000 | 変化なし |
+| p 値 | p = 0.002 | p = 0.002 | 変化なし |
+| r | 0.693 | 0.693 | 変化なし |
+
+実験結果の **解釈方向**（B>A か A>B か）は変わらない。δ の符号が正しく「条件Bのほうが高い」を示すようになった。
+
+### 残存する軽微な問題
+
+修正は不要だが認識しておくべき点:
+
+| # | 内容 | 影響 |
+|---|------|------|
+| M1 | Holm 補正後 p の表記に `< .001` 形式がない（生の数値が出る） | 読みやすさのみ、値は正しい |
+| M2 | `cronbach_alpha` が全員同点（分散0）のとき `1.0` を返す（0/0） | 全員同点なら実害なし（P2 参照） |
+| M3 | `_compute_discomfort_cross` の第2引数 `_full` が未使用 | 動作に影響なし |
