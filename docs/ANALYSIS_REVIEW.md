@@ -187,10 +187,52 @@ Cliff's δ の符号規約を「B>A=正」に修正したため、ダミーデ�
 
 ### 残存する軽微な問題
 
-修正は不要だが認識しておくべき点:
+当初 M1/M2/M3/X1 として列挙した軽微な問題はすべて修正済み（下記 analysis-v1.0 参照）。
 
-| # | 内容 | 影響 |
-|---|------|------|
-| M1 | Holm 補正後 p の表記に `< .001` 形式がない（生の数値が出る） | 読みやすさのみ、値は正しい |
-| M2 | `cronbach_alpha` が全員同点（分散0）のとき `1.0` を返す（0/0） | 全員同点なら実害なし（P2 参照） |
-| M3 | `_compute_discomfort_cross` の第2引数 `_full` が未使用 | 動作に影響なし |
+---
+
+## analysis-v1.0 修正結果（2026-11-03）
+
+**修正完了日**: 2026-11-03  
+**テスト結果**: 260 passed（0 failed, 0 error）  
+**タグ**: `analysis-v1.0`
+
+### 修正内容
+
+| # | 修正内容 | 対象ファイル | テストクラス |
+|---|----------|------------|------------|
+| X1 | `DISCOMFORT_CATEGORIES`・`DISCOMFORT_PRESENT_CATEGORIES`・`DISCOMFORT_INTEREST_CHOICES` を `config.py` に追加。`load.py` に `_validate_discomfort` を追加し、想定外値を警告。`report.py` もすべて config 定数を参照するよう修正。 | config.py, load.py, report.py | TestConfigDiscomfortChoices (6), TestDiscomfortValidation (7) |
+| M1 | 副指標テーブルの Holm p 列を `_fmt_f(holm_p)` → `_fmt_p(holm_p)` に修正。すべての p 値が `p = X.XXX` / `p < .001` 形式に統一された。 | report.py | TestFmtPFunction (4), TestHolmPFormatInReport (1) |
+| M2 | `cronbach_alpha` で `total_var == 0` のとき `1.0` → `np.nan` を返すよう修正。`select_primary_metric` で NaN・負の α を「しきい値未満」として扱い、レポートに「全員が同じ点のため α を計算できず、満足度を主指標とした」と記録するよう修正。 | scoring.py | TestCronbachAlphaZeroVariance (2), TestSelectPrimaryMetricNaNAndNegative (7) |
+| M3 | `_compute_discomfort_cross(sub, _full)` の未使用引数 `_full` を削除。呼び出し箇所 2 か所も修正。 | report.py | TestComputeDiscomfortCrossSignature (2) |
+
+### 意地悪なデータ 27 パターン再確認（X1/M2 に関係するパターンのみ）
+
+| # | パターン | 修正後の動作 |
+|---|---------|-----------|
+| 20 | 全員同点（分散0） | α=NaN → satisfaction に切替。レポートに「全員が同じ点のため α を計算できず、満足度を主指標とした（条件A: 計算不能、条件B: 計算不能）」と記録 ✓ |
+| X1a | discomfort に「ちょっとある」など想定外値 | `load_responses` が警告を返し、Section 9（注意書き一覧）に「行X: 列'discomfort'の値'...'は想定外の値です」と記録。集計からは除外される ✓ |
+| X1b | discomfort_interest に「たぶん」など想定外値 | 同上（列名は 'discomfort_interest'） ✓ |
+| X1c | 既知値（なかった/少しあった/あった/はい/いいえ）および空欄 | 警告なし ✓ |
+| M2b | α < 0（real_header.csv: 条件A=-1.203, 条件B=0.171） | satisfaction に切替。レポートに「α が...一方または両方がしきい値 0.7 を下回ったため...satisfaction に切り替えました」と記録 ✓ |
+| 他22件 | — | 修正前と変わらず正常動作 ✓ |
+
+### real_header.csv 再実行結果
+
+| 項目 | 修正前 | 修正後 | 変化 |
+|------|--------|--------|------|
+| Cronbach's α (条件A) | 表記なし（1.0 を返す可能性） | -1.203 | α が正確に計算される |
+| Cronbach's α (条件B) | — | 0.171 | — |
+| 主指標 | satisfaction | satisfaction | 変化なし（α 両方 < 0.70） |
+| 判定 | 仮説を支持する（B > A, p=0.011） | 同上 | 変化なし |
+| Holm p の形式 | 0.027（数値のみ） | p = 0.027 | 形式統一 ✓ |
+| 注意書きの件数 | 2 件 | 2 件 | 変化なし |
+
+### 本番データを見たあとにプログラムを変える場合のルール
+
+本番データを入力した後にプログラムを変更する場合は、**必ずこのファイルに以下を記録してから変更すること**:
+
+1. **変更理由**: 本番データの何を見て変更が必要と判断したか
+2. **変更内容**: 何を変えるか
+3. **影響範囲**: どの出力値・解釈が変わるか
+4. **変更日**: いつ変更したか

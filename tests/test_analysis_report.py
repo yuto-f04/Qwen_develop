@@ -201,6 +201,131 @@ class TestLieIdMatching:
         assert result.get("H1", {}).get("n_noticed", 0) == 1
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# M1: _fmt_p — すべての p 値（Holm 補正後も含む）が同じ形式になること
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestFmtPFunction:
+    """M1: _fmt_p の直接テスト（p < .001 を含む）"""
+
+    def test_very_small_p_returns_lt_001(self):
+        from src.analysis.report import _fmt_p
+        assert _fmt_p(0.0001) == "p < .001"
+
+    def test_p_at_exactly_001_returns_p_equals(self):
+        from src.analysis.report import _fmt_p
+        assert _fmt_p(0.001) == "p = 0.001"
+
+    def test_larger_p_returns_p_equals(self):
+        from src.analysis.report import _fmt_p
+        assert _fmt_p(0.05) == "p = 0.050"
+
+    def test_nan_p_returns_nan_string(self):
+        import numpy as np
+        from src.analysis.report import _fmt_p
+        assert _fmt_p(float("nan")) == "NaN"
+
+
+class TestHolmPFormatInReport:
+    """M1: _build_report の副指標テーブルで Holm p が _fmt_p 形式になっていること"""
+
+    def _make_results(self):
+        """_build_report 用の最小 results dict を作る。secondary_holm[0] = 0.0001"""
+        import numpy as np
+        from src import config
+
+        _res = {
+            "n_used": 2, "n_tied": 0, "W": 3.0, "p": 0.3,
+            "z_stat": -1.0, "r": 0.5, "dz": 0.5,
+            "mean_diff": 1.0, "median_diff": 1.0, "sd_diff": 0.5,
+            "ci_mean": (0.0, 2.0), "ci_median": (0.0, 2.0),
+        }
+        _disc_cond = {
+            cond: {
+                "total": 2,
+                "なかった": {"n": 2, "pct": 1.0},
+                "少しあった": {"n": 0, "pct": 0.0},
+                "あった": {"n": 0, "pct": 0.0},
+            }
+            for cond in [config.CONDITION_A, config.CONDITION_B]
+        }
+        return {
+            "n_raw": 4, "n_dedup": 4, "n_paired": 2,
+            "excluded": [], "inconsistency_warnings": [], "dup_warnings": [],
+            "group_counts": {1: 1, 2: 1},
+            "alpha_a": 0.8, "alpha_b": 0.8,
+            "primary_metric": "satisfaction",
+            "alpha_note": "",
+            "main_result": dict(_res),
+            "main_judgment": "テスト判定",
+            "secondary_results": {item: dict(_res) for item in config.SECONDARY_ITEMS},
+            "secondary_holm": [0.0001, 0.3, 0.5, 0.7, 0.9],
+            "condition_check_results": {item: dict(_res) for item in config.CONDITION_CHECK_ITEMS},
+            "first_result": {},
+            "order_result": {},
+            "diff_by_group": {},
+            "group_means": {},
+            "disc_cross": _disc_cond,
+            "disc_cross_first": _disc_cond,
+            "disc_interest": {},
+            "disc_diff_result": {},
+            "disc_no_mean": np.nan,
+            "disc_some_mean": np.nan,
+            "no_disc_n": 0,
+            "some_disc_n": 0,
+            "desc_stats": {
+                item: {
+                    "n_A": 2, "mean_A": 7.0, "sd_A": 1.0,
+                    "median_A": 7.0, "q1_A": 6.5, "q3_A": 7.5, "ceiling_prop_A": 0.0,
+                    "n_B": 2, "mean_B": 8.0, "sd_B": 1.0,
+                    "median_B": 8.0, "q1_B": 7.5, "q3_B": 8.5, "ceiling_prop_B": 0.0,
+                }
+                for item in config.SCALE_ITEMS
+            },
+            "notes": [],
+        }
+
+    def test_holm_p_0001_appears_as_p_lt_001(self):
+        """secondary_holm[0] = 0.0001 が 'p < .001' として出力されること
+        （修正前は _fmt_f で '0.000' になる）"""
+        from src.analysis.report import _build_report
+        r = self._make_results()
+        report_text = _build_report(r)
+        sec_start = report_text.find("## 3. 副指標")
+        # "\n---\n" はセクション区切り。テーブル内の "|------|" とは区別する
+        sec_end = report_text.find("\n---\n", sec_start)
+        section = report_text[sec_start:sec_end if sec_end > 0 else None]
+        assert "p < .001" in section, (
+            "Holm p = 0.0001 が 'p < .001' 形式で出力されていません。"
+            "_fmt_p を使うよう修正してください。\n"
+            f"副指標セクション:\n{section}"
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# M3: _compute_discomfort_cross から _full 引数が削除されていること
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestComputeDiscomfortCrossSignature:
+    """M3: _compute_discomfort_cross(sub) — 引数は sub のみ"""
+
+    def test_no_full_arg(self):
+        import inspect
+        from src.analysis.report import _compute_discomfort_cross
+        sig = inspect.signature(_compute_discomfort_cross)
+        assert "_full" not in sig.parameters, \
+            "_compute_discomfort_cross に未使用引数 _full が残っています"
+
+    def test_callable_with_one_positional_arg(self):
+        """1引数だけで呼び出せること（2引数渡すと TypeError）"""
+        import pandas as pd
+        from src.analysis.report import _compute_discomfort_cross
+        sub = pd.DataFrame({"condition": [], "discomfort": []})
+        # 1引数で呼べることを確認
+        result = _compute_discomfort_cross(sub)
+        assert isinstance(result, dict)
+
+
 class TestEmptyDataDoesNotCrash:
     """ペアがゼロになる入力でも ValueError を出して正常終了すること"""
 

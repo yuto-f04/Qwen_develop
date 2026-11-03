@@ -223,9 +223,9 @@ def run_analysis(
             }
 
     # ── ⑥ 違和感 ─────────────────────────────────────────────
-    disc_cross = _compute_discomfort_cross(df_paired, df_paired)
+    disc_cross = _compute_discomfort_cross(df_paired)
     disc_cross_first = _compute_discomfort_cross(
-        df_paired[df_paired["round"] == config.ROUND_FIRST], df_paired
+        df_paired[df_paired["round"] == config.ROUND_FIRST]
     )
 
     # A: 「興味を抱いたか」を違和感あり人の中で条件別に集計
@@ -233,14 +233,16 @@ def run_analysis(
     for cond in [config.CONDITION_A, config.CONDITION_B]:
         cond_sub = df_paired[
             (df_paired["condition"] == cond) &
-            (df_paired["discomfort"].isin(["少しあった", "あった"]))
+            (df_paired["discomfort"].isin(config.DISCOMFORT_PRESENT_CATEGORIES))
         ]["discomfort_interest"].dropna()
         total = len(cond_sub)
+        hai = config.DISCOMFORT_INTEREST_CHOICES[0]   # "はい"
+        iie = config.DISCOMFORT_INTEREST_CHOICES[1]   # "いいえ"
         disc_interest[cond] = {
             "total": total,
-            "yes": int((cond_sub == "はい").sum()),
-            "no": int((cond_sub == "いいえ").sum()),
-            "yes_pct": float((cond_sub == "はい").sum() / total) if total > 0 else 0.0,
+            "yes": int((cond_sub == hai).sum()),
+            "no": int((cond_sub == iie).sum()),
+            "yes_pct": float((cond_sub == hai).sum() / total) if total > 0 else 0.0,
         }
 
     # B: 違和感あり vs なしで主指標の差を比較
@@ -252,8 +254,8 @@ def run_analysis(
         ["norm_name", "discomfort"]
     ]
     merged = b_data.merge(disc_b, on="norm_name", how="left")
-    no_disc = merged[merged["discomfort"] == "なかった"]["diff"].dropna().values
-    some_disc = merged[merged["discomfort"].isin(["少しあった", "あった"])]["diff"].dropna().values
+    no_disc = merged[merged["discomfort"] == config.DISCOMFORT_CATEGORIES[0]]["diff"].dropna().values
+    some_disc = merged[merged["discomfort"].isin(config.DISCOMFORT_PRESENT_CATEGORIES)]["diff"].dropna().values
     if len(no_disc) >= 5 and len(some_disc) >= 5:
         disc_diff_result = mann_whitney_u(no_disc, some_disc)
     else:
@@ -328,8 +330,8 @@ def run_analysis(
     return results, notes
 
 
-def _compute_discomfort_cross(sub: pd.DataFrame, _full: pd.DataFrame) -> Dict:
-    categories = ["なかった", "少しあった", "あった"]
+def _compute_discomfort_cross(sub: pd.DataFrame) -> Dict:
+    """違和感のクロス表を計算する。選択肢は config.DISCOMFORT_CATEGORIES を参照。"""
     result = {}
     for cond in [config.CONDITION_A, config.CONDITION_B]:
         cond_sub = sub[sub["condition"] == cond]["discomfort"].dropna()
@@ -337,7 +339,7 @@ def _compute_discomfort_cross(sub: pd.DataFrame, _full: pd.DataFrame) -> Dict:
         result[cond] = {
             cat: {"n": int((cond_sub == cat).sum()),
                   "pct": float((cond_sub == cat).sum() / total) if total > 0 else 0.0}
-            for cat in categories
+            for cat in config.DISCOMFORT_CATEGORIES
         }
         result[cond]["total"] = total
     return result
@@ -375,7 +377,7 @@ def _write_free_text(df: pd.DataFrame, outdir: Path) -> None:
 def _write_coding_sheet(df: pd.DataFrame, outdir: Path) -> None:
     b_disc = df[
         (df["condition"] == config.CONDITION_B) &
-        (df["discomfort"].isin(["少しあった", "あった"]))
+        (df["discomfort"].isin(config.DISCOMFORT_PRESENT_CATEGORIES))
     ].copy()
     rows = []
     for _, row in b_disc.iterrows():
@@ -531,7 +533,7 @@ def _build_report(r: Dict) -> str:
         lines.append(
             f"| {item} | {sr['n_used']} | {_fmt_f(sr['W'])} | {_fmt_p(sr['p'])} "
             f"| {_fmt_f(sr.get('r', np.nan))} | {_fmt_f(sr.get('dz', np.nan))} "
-            f"| {_fmt_f(holm_p)} |"
+            f"| {_fmt_p(holm_p)} |"
         )
     lines += [
         "",

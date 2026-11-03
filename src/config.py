@@ -128,3 +128,8 @@ LIE_LIST = [
     {"id": "L4", "location": "ラウンジ",
      "content": "下から上へかすかに暖かい風が流れている"},
 ]
+
+# ── 違和感・興味の選択肢 ─────────────────────────────────────────────────────
+DISCOMFORT_CATEGORIES = ["なかった", "少しあった", "あった"]
+DISCOMFORT_PRESENT_CATEGORIES = ["少しあった", "あった"]  # 違和感あり（なかった以外）
+DISCOMFORT_INTEREST_CHOICES = ["はい", "いいえ"]

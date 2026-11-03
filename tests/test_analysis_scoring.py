@@ -103,3 +103,66 @@ class TestSelectPrimaryMetric:
     def test_exactly_threshold_returns_entertainment(self):
         metric, _ = select_primary_metric(alpha_a=0.70, alpha_b=0.70)
         assert metric == "entertainment_score"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# M2: cronbach_alpha — total_var == 0 のとき 1.0 ではなく NaN を返すこと
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestCronbachAlphaZeroVariance:
+    """M2: 全員同点（分散0）は計算不能 → NaN"""
+
+    def test_all_same_values_returns_nan_not_one(self):
+        """全行全列が同じ値 → total_var == 0 → NaN"""
+        data = np.array([[5, 5, 5, 5]] * 5, dtype=float)
+        df = pd.DataFrame(data, columns=["a", "b", "c", "d"])
+        alpha = cronbach_alpha(df)
+        assert np.isnan(alpha), f"全員同点の α は NaN であるべき、実際は {alpha}"
+
+    def test_all_same_constant_different_col_returns_nan(self):
+        """全員が同じ合計点になるパターン（各列が異なるが変動しない）"""
+        data = np.array([[3, 5, 2, 0]] * 6, dtype=float)
+        df = pd.DataFrame(data, columns=["a", "b", "c", "d"])
+        alpha = cronbach_alpha(df)
+        assert np.isnan(alpha), f"合計分散0のケースは NaN であるべき、実際は {alpha}"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# M2: select_primary_metric — NaN・負の α でも満足度に切り替え、適切な note を出すこと
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestSelectPrimaryMetricNaNAndNegative:
+    """M2: NaN/負 α → satisfaction + 意味のある note"""
+
+    def test_nan_alpha_a_returns_satisfaction(self):
+        metric, _ = select_primary_metric(alpha_a=np.nan, alpha_b=0.80)
+        assert metric == "satisfaction"
+
+    def test_nan_alpha_both_returns_satisfaction(self):
+        metric, _ = select_primary_metric(alpha_a=np.nan, alpha_b=np.nan)
+        assert metric == "satisfaction"
+
+    def test_nan_alpha_note_mentions_calculation_impossible(self):
+        """NaN のとき note に「計算不能」または「計算できず」が含まれること"""
+        _, note = select_primary_metric(alpha_a=np.nan, alpha_b=0.80)
+        assert "計算不能" in note or "計算できず" in note, \
+            f"NaN α の note に計算不能の説明がない: {note!r}"
+
+    def test_nan_both_note_mentions_calculation_impossible(self):
+        _, note = select_primary_metric(alpha_a=np.nan, alpha_b=np.nan)
+        assert "計算不能" in note or "計算できず" in note, \
+            f"両方 NaN の note に計算不能の説明がない: {note!r}"
+
+    def test_negative_alpha_returns_satisfaction(self):
+        """負の α も閾値未満として satisfaction に切り替える"""
+        metric, _ = select_primary_metric(alpha_a=-0.5, alpha_b=0.80)
+        assert metric == "satisfaction"
+
+    def test_negative_alpha_note_is_not_empty(self):
+        """負の α でも note に理由が書かれていること"""
+        _, note = select_primary_metric(alpha_a=-0.5, alpha_b=0.80)
+        assert note != "", "負の α でも note に説明が必要"
+
+    def test_both_negative_returns_satisfaction(self):
+        metric, _ = select_primary_metric(alpha_a=-0.3, alpha_b=-0.1)
+        assert metric == "satisfaction"

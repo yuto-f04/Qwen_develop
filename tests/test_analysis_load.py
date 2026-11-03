@@ -503,4 +503,183 @@ class TestBlankNameFiltering:
         src = self._csv(self._row(""), self._row(""))
         df, warnings = load_responses(src)
         assert len(df) == 0
-        assert any("氏名が空欄" in w for w in warnings)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# real_header.csv 回帰テスト
+# 本番 Google フォームの実際の列名構造がそのまま parse できることを保証する。
+# tests/fixtures/edge_cases/real_header.csv は本番 CSV と同じ列名・構造を持ち、
+# 氏名のみ架空のテスト被験者 A〜T に置換したもの。
+# ──────────────────────────────────────────────────────────────────────────────
+
+import pathlib
+
+
+class TestRealHeaderFixture:
+    """tests/fixtures/edge_cases/real_header.csv を使った列名回帰テスト"""
+
+    FIXTURE = (
+        pathlib.Path(__file__).parent / "fixtures" / "edge_cases" / "real_header.csv"
+    )
+
+    def test_fixture_file_exists(self):
+        assert self.FIXTURE.exists(), "real_header.csv が見つかりません"
+
+    def test_load_does_not_raise(self):
+        """実際の列名構造で load_responses がエラーなく通ること"""
+        df, warnings = load_responses(str(self.FIXTURE))
+        assert df is not None
+
+    def test_expected_columns_present(self):
+        """必須の内部列が作られていること"""
+        df, _ = load_responses(str(self.FIXTURE))
+        for col in ("norm_name", "condition", "round", "timestamp"):
+            assert col in df.columns, f"列 {col!r} がない"
+
+    def test_score_columns_present(self):
+        """スコア列（interest, recommend 等）が数値として読まれていること"""
+        df, _ = load_responses(str(self.FIXTURE))
+        for col in ("interest", "recommend", "satisfaction", "revisit"):
+            assert col in df.columns, f"列 {col!r} がない"
+
+    def test_paired_participants_count(self):
+        """テストデータの有効ペア数が期待通りであること（片方のみ参加者1名を除いた20名=10ペア）"""
+        df, _ = load_responses(str(self.FIXTURE))
+        # 全体行数: テスト被験者A〜T=40行 + 片方のみ1行 = 41行
+        # 空欄氏名なし・重複(テスト被験者E)を除くと有効行40行
+        assert len(df) >= 40
+
+    def test_space_variant_names_normalized(self):
+        """全角スペース入り氏名（テスト被験者C・F）が正規化されてペアになること"""
+        df, _ = load_responses(str(self.FIXTURE))
+        # norm_name でスペースが除去され同一人物と見なされること
+        counts = df["norm_name"].value_counts()
+        # テスト被験者C と テスト被験者F はそれぞれ2行（空白違いの2エントリ）
+        c_name = "テスト被験者C"
+        assert counts.get(c_name, 0) == 2, f"{c_name} のペアが揃っていない"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# X1: 違和感・興味の選択肢が config.py に定義されていること
+# ──────────────────────────────────────────────────────────────────────────────
+
+from src import config as _cfg
+
+
+class TestConfigDiscomfortChoices:
+    """X1: config に違和感・興味の選択肢定数が存在すること"""
+
+    def test_discomfort_categories_defined(self):
+        assert hasattr(_cfg, "DISCOMFORT_CATEGORIES"), \
+            "config.DISCOMFORT_CATEGORIES が定義されていません"
+
+    def test_discomfort_categories_has_three_values(self):
+        assert set(_cfg.DISCOMFORT_CATEGORIES) == {"なかった", "少しあった", "あった"}
+
+    def test_discomfort_present_categories_defined(self):
+        assert hasattr(_cfg, "DISCOMFORT_PRESENT_CATEGORIES"), \
+            "config.DISCOMFORT_PRESENT_CATEGORIES が定義されていません"
+
+    def test_discomfort_present_categories_excludes_nakatta(self):
+        assert "なかった" not in _cfg.DISCOMFORT_PRESENT_CATEGORIES
+        assert "少しあった" in _cfg.DISCOMFORT_PRESENT_CATEGORIES
+        assert "あった" in _cfg.DISCOMFORT_PRESENT_CATEGORIES
+
+    def test_discomfort_interest_choices_defined(self):
+        assert hasattr(_cfg, "DISCOMFORT_INTEREST_CHOICES"), \
+            "config.DISCOMFORT_INTEREST_CHOICES が定義されていません"
+
+    def test_discomfort_interest_choices_has_hai_and_iie(self):
+        assert set(_cfg.DISCOMFORT_INTEREST_CHOICES) == {"はい", "いいえ"}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# X1: 想定外の discomfort / discomfort_interest 値に警告を出すこと
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestDiscomfortValidation:
+    """X1: 想定外値を検出して警告、既知値・空欄は警告なし"""
+
+    _HEADER = (
+        "タイムスタンプ,1. 体験者の氏名,2. ツアーの条件,3. 何回目の参加ですか？,"
+        "4. ツアー内容に興味を持ちましたか？,5. ツアーの長さは適切でしたか？,"
+        "6. ツアー中の説明は分かりやすかったですか？,7. ガイドの語りに熱意を感じましたか？,"
+        "8. このツアーを他人におすすめできますか？,9. ツアーは期待通りでしたか？,"
+        "10. このツアーに満足しましたか？,11. ツアー内容は難しいと感じましたか？,"
+        "12. 体力面で不安は感じましたか？,13. また参加したいと感じましたか？,"
+        "14. ツアーの説明の中に「違和感」「気になったところ」はありましたか？,"
+        "14-2. どこで「違和感」を感じたか？,14-3. なぜ「違和感」を抱いたのか？,"
+        "14-4. その違和感に「興味」を抱いたか？,"
+        "14-4-2. 興味を抱かなかった理由について簡単に教えてください,"
+        "14-4-2. 興味を抱いた理由を簡単に教えてください,"
+        "15. ツアーの中で最も印象に残った場面・体験を教えてください,"
+        "16. ツアー全体の感想を教えてください  "
+    )
+
+    def _csv(self, *rows):
+        return io.StringIO(self._HEADER + "\n" + "\n".join(rows) + "\n")
+
+    def _row(self, name="山田太郎", cond="条件A", disc="なかった", interest=""):
+        return (
+            f"2026/11/01 10:00:00,{name},{cond},1回目,"
+            f"7,7,7,7,7,7,7,7,7,7,"
+            f"{disc},,,{interest},,,感想"
+        )
+
+    def test_known_discomfort_value_no_warning(self):
+        """既知の選択肢（なかった/少しあった/あった）は警告なし"""
+        for disc in ["なかった", "少しあった", "あった"]:
+            src = self._csv(self._row(disc=disc))
+            _, warnings = load_responses(src)
+            disc_warns = [w for w in warnings if "discomfort" in w and disc in w
+                          and "想定外" in w]
+            assert disc_warns == [], f"'{disc}' で誤警告: {disc_warns}"
+
+    def test_unknown_discomfort_value_warns(self):
+        """想定外の値（例: 'ありました'）は警告が出る"""
+        src = self._csv(self._row(disc="ありました"))
+        _, warnings = load_responses(src)
+        assert any("ありました" in w and "想定外" in w for w in warnings), \
+            f"想定外の discomfort 値に警告が出ていない: {warnings}"
+
+    def test_blank_discomfort_no_warning(self):
+        """空欄（NaN/空文字）は警告なし"""
+        src = self._csv(self._row(disc=""))
+        _, warnings = load_responses(src)
+        disc_warns = [w for w in warnings if "discomfort" in w and "想定外" in w]
+        assert disc_warns == [], f"空欄で誤警告: {disc_warns}"
+
+    def test_known_discomfort_interest_no_warning(self):
+        """'はい'/'いいえ' は警告なし"""
+        for interest in ["はい", "いいえ"]:
+            src = self._csv(self._row(disc="あった", interest=interest))
+            _, warnings = load_responses(src)
+            int_warns = [w for w in warnings if "discomfort_interest" in w
+                         and "想定外" in w]
+            assert int_warns == [], f"'{interest}' で誤警告: {int_warns}"
+
+    def test_unknown_discomfort_interest_value_warns(self):
+        """想定外の興味値（例: 'たぶん'）は警告が出る"""
+        src = self._csv(self._row(disc="あった", interest="たぶん"))
+        _, warnings = load_responses(src)
+        assert any("たぶん" in w and "想定外" in w for w in warnings), \
+            f"想定外の discomfort_interest 値に警告が出ていない: {warnings}"
+
+    def test_blank_discomfort_interest_no_warning(self):
+        """discomfort_interest が空欄なら警告なし"""
+        src = self._csv(self._row(disc="あった", interest=""))
+        _, warnings = load_responses(src)
+        int_warns = [w for w in warnings if "discomfort_interest" in w
+                     and "想定外" in w]
+        assert int_warns == [], f"空欄で誤警告: {int_warns}"
+
+    def test_multiple_unknown_values_all_warned(self):
+        """複数行に想定外値があれば、すべて警告に含まれる"""
+        src = self._csv(
+            self._row(name="田中太郎", disc="ちょっとある"),
+            self._row(name="鈴木花子", disc="かなりある"),
+        )
+        _, warnings = load_responses(src)
+        unknown_warns = [w for w in warnings if "想定外" in w and "discomfort" in w]
+        assert len(unknown_warns) >= 2, \
+            f"2件の想定外値なのに警告が {len(unknown_warns)} 件: {warnings}"

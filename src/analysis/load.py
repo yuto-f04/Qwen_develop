@@ -125,6 +125,31 @@ def _rename_columns(df: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
     return df.rename(columns=rename_dict), []
 
 
+def _validate_discomfort(df: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
+    """discomfort / discomfort_interest の想定外値を警告する。
+    NaN・空文字・既知の選択肢以外の値を検出する。
+    想定外の値は黙って0件集計されることがないよう、必ず警告を出す。
+    """
+    warnings: List[str] = []
+    checks = [
+        ("discomfort", config.DISCOMFORT_CATEGORIES),
+        ("discomfort_interest", config.DISCOMFORT_INTEREST_CHOICES),
+    ]
+    for col, valid_values in checks:
+        if col not in df.columns:
+            continue
+        valid = set(valid_values)
+        for idx, val in df[col].items():
+            if pd.isna(val) or str(val).strip() == "":
+                continue
+            if str(val) not in valid:
+                warnings.append(
+                    f"行{idx}: 列'{col}'の値'{val}'は想定外の値です"
+                    f"（想定: {valid_values}）。集計には使用されません。"
+                )
+    return df, warnings
+
+
 def _validate_scale(df: pd.DataFrame) -> Tuple[pd.DataFrame, List[str]]:
     """スケール項目を数値に変換し、1〜10の範囲外・数値でない場合はNaNにして警告を返す"""
     warnings: List[str] = []
@@ -319,6 +344,10 @@ def load_responses(
 
     # スケール値の検証
     df, w = _validate_scale(df)
+    all_warnings.extend(w)
+
+    # 違和感・興味の選択肢の検証
+    df, w = _validate_discomfort(df)
     all_warnings.extend(w)
 
     return df, all_warnings
