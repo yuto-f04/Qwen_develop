@@ -166,6 +166,19 @@ def cliffs_delta(x: np.ndarray, y: np.ndarray) -> float:
     return float((greater - less) / (n1 * n2))
 
 
+def spearman_correlation(x: np.ndarray, y: np.ndarray) -> Dict[str, Any]:
+    """スピアマン順位相関係数を計算する。n < 3 の場合は NaN を返す。"""
+    n = len(x)
+    if n < 3:
+        return {"rho": np.nan, "p": np.nan, "n": n}
+    result = stats.spearmanr(x, y)
+    return {
+        "rho": float(result.statistic),
+        "p": float(result.pvalue),
+        "n": n,
+    }
+
+
 def holm_correction(p_values: list) -> list:
     """Holm 法による多重比較補正済み p 値を返す"""
     k = len(p_values)

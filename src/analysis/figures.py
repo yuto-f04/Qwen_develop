@@ -3,6 +3,9 @@ import warnings
 from pathlib import Path
 from typing import List
 
+import matplotlib
+matplotlib.use("Agg")  # 非インタラクティブ backend（GUI不要・テスト環境で必須）
+
 import numpy as np
 import pandas as pd
 

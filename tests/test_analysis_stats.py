@@ -218,3 +218,50 @@ class TestMannWhitneyUDirectionConvention:
         a_vals = np.array([7.0, 8.0, 9.0])
         result = mann_whitney_u(b_vals, a_vals)
         assert result["delta"] < 0, "A>B のとき delta は負であること"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# spearman_correlation
+# ──────────────────────────────────────────────────────────────────────────────
+
+from src.analysis.stats_tests import spearman_correlation
+
+
+class TestSpearmanCorrelation:
+    def test_perfect_positive(self):
+        x = np.array([0.0, 1.0, 2.0])
+        y = np.array([1.0, 2.0, 3.0])
+        result = spearman_correlation(x, y)
+        assert result["rho"] == pytest.approx(1.0)
+        assert result["n"] == 3
+
+    def test_perfect_negative(self):
+        x = np.array([0.0, 1.0, 2.0])
+        y = np.array([3.0, 2.0, 1.0])
+        result = spearman_correlation(x, y)
+        assert result["rho"] == pytest.approx(-1.0)
+
+    def test_no_correlation(self):
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        y = np.array([3.0, 1.0, 5.0, 2.0, 4.0])
+        result = spearman_correlation(x, y)
+        assert isinstance(result["rho"], float)
+        assert isinstance(result["p"], float)
+
+    def test_too_few_returns_nan(self):
+        result = spearman_correlation(np.array([1.0, 2.0]), np.array([1.0, 2.0]))
+        import math
+        assert math.isnan(result["rho"])
+        assert result["n"] == 2
+
+    def test_p_value_significant_for_perfect(self):
+        x = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+        y = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+        result = spearman_correlation(x, y)
+        assert result["p"] < 0.05
+
+    def test_returns_required_keys(self):
+        x = np.array([1.0, 2.0, 3.0])
+        y = np.array([1.0, 2.0, 3.0])
+        result = spearman_correlation(x, y)
+        assert set(result.keys()) >= {"rho", "p", "n"}

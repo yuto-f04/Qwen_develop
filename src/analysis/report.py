@@ -15,6 +15,7 @@ from src.analysis.load import (
     assign_group,
     detect_round_inconsistency,
     apply_name_aliases,
+    assign_participant_ids,
 )
 from src.analysis.scoring import (
     compute_entertainment_score,
@@ -27,6 +28,7 @@ from src.analysis.stats_tests import (
     cliffs_delta,
     holm_correction,
     judgment_text,
+    spearman_correlation,
 )
 
 
@@ -79,6 +81,14 @@ def run_analysis(
     # ── グループ判定 ──────────────────────────────────────────
     df_paired = assign_group(df_paired)
 
+    # ── 氏名 → 参加者ID（P01, P02...）に置き換え ─────────────
+    df_paired, id_to_name = assign_participant_ids(df_paired)
+    id_map_rows = [{"participant_id": pid, "氏名": name}
+                   for pid, name in sorted(id_to_name.items())]
+    pd.DataFrame(id_map_rows).to_csv(
+        outdir_path / "participant_map.csv", index=False, encoding="utf-8-sig"
+    )
+
     # ── 回数の矛盾検出 ────────────────────────────────────────
     inconsistency_warnings = detect_round_inconsistency(df_paired)
     inconsistency_warning_msgs = [msg for _, msg in inconsistency_warnings]
@@ -123,8 +133,10 @@ def run_analysis(
     wide_df = pd.DataFrame(pivot_rows)
     wide_df.to_csv(outdir_path / "wide.csv", index=False, encoding="utf-8-sig")
 
-    # ── tidy 形式 ─────────────────────────────────────────────
-    df_paired.to_csv(outdir_path / "tidy.csv", index=False, encoding="utf-8-sig")
+    # ── tidy 形式（name 列を除いて出力し氏名を残さない） ────────
+    df_paired.drop(columns=["name"], errors="ignore").to_csv(
+        outdir_path / "tidy.csv", index=False, encoding="utf-8-sig"
+    )
 
     # ── Cronbach's α と主指標選択 ────────────────────────────
     def alpha_for_cond(cond):
@@ -263,6 +275,18 @@ def run_analysis(
             "[違和感] 違和感の有無グループのどちらかが5人未満のため、検定は行わず記述統計のみ。"
         )
 
+    # C: 違和感スコア（0/1/2）と B−A 差のスピアマン相関
+    disc_score_map = {cat: i for i, cat in enumerate(config.DISCOMFORT_CATEGORIES)}
+    merged_valid = merged.dropna(subset=["diff", "discomfort"])
+    disc_scores_sp = merged_valid["discomfort"].map(disc_score_map).astype(float).values
+    ba_diffs_sp = merged_valid["diff"].values
+    mask_sp = ~(np.isnan(disc_scores_sp) | np.isnan(ba_diffs_sp))
+    spearman_result: Dict[str, Any] = {}
+    if mask_sp.sum() >= 3:
+        spearman_result = spearman_correlation(disc_scores_sp[mask_sp], ba_diffs_sp[mask_sp])
+    else:
+        notes.append("[違和感] スピアマン相関の計算に十分なデータがありません（3人未満）。")
+
     # ── ⑦ 記述統計と天井効果 ─────────────────────────────────
     desc_stats = _compute_desc_stats(df_paired)
     for item, row in desc_stats.items():
@@ -316,6 +340,7 @@ def run_analysis(
         "disc_cross_first": disc_cross_first,
         "disc_interest": disc_interest,
         "disc_diff_result": disc_diff_result,
+        "spearman_result": spearman_result,
         "disc_no_mean": float(np.mean(no_disc)) if len(no_disc) > 0 else np.nan,
         "disc_some_mean": float(np.mean(some_disc)) if len(some_disc) > 0 else np.nan,
         "no_disc_n": len(no_disc),
@@ -688,6 +713,20 @@ def _build_report(r: Dict) -> str:
             f"- 違和感あり: B−A 平均 = {_fmt_f(r.get('disc_some_mean', np.nan))}"
         )
         lines.append("- 人数が5人未満のため検定は実施しない（記述統計のみ）。")
+    # C: スピアマン相関（違和感スコア 0/1/2 vs B−A 差）
+    sp = r.get("spearman_result", {})
+    lines += ["", "### 違和感スコア（0〜2）と主指標 B−A 差のスピアマン相関"]
+    if sp and not np.isnan(sp.get("rho", np.nan)):
+        lines += [
+            "",
+            f"- ρ = {_fmt_f(sp.get('rho', np.nan))}",
+            f"- {_fmt_p(sp.get('p', np.nan))}",
+            f"- n = {sp.get('n', 0)}",
+            "",
+            "※ ρ > 0 なら「違和感が強いほど B の得点が A より高い」傾向を示す。",
+        ]
+    else:
+        lines += ["", "- データが不十分なため計算できませんでした。"]
     lines += [
         "",
         "---",

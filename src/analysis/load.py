@@ -290,6 +290,26 @@ def apply_name_aliases(df: pd.DataFrame, aliases_path: str) -> pd.DataFrame:
     return df
 
 
+def assign_participant_ids(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, str]]:
+    """norm_name を参加者ID（P01, P02...）に変換し、norm_name 列を上書きする。
+
+    最初のタイムスタンプ順（NaT は最後）でIDを割り当てる。
+    Returns: (更新済み df, {participant_id: 元の norm_name} の辞書)
+    """
+    first_ts = (
+        df.groupby("norm_name")["timestamp"]
+        .min()
+        .sort_values(na_position="last")
+    )
+    sorted_names = first_ts.index.tolist()
+    name_to_id: Dict[str, str] = {name: f"P{i + 1:02d}" for i, name in enumerate(sorted_names)}
+    id_to_name: Dict[str, str] = {pid: name for name, pid in name_to_id.items()}
+
+    df = df.copy()
+    df["norm_name"] = df["norm_name"].map(name_to_id)
+    return df, id_to_name
+
+
 def load_responses(
     source: Union[str, IO],
     aliases_path: str = "",

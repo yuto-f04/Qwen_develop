@@ -683,3 +683,59 @@ class TestDiscomfortValidation:
         unknown_warns = [w for w in warnings if "想定外" in w and "discomfort" in w]
         assert len(unknown_warns) >= 2, \
             f"2件の想定外値なのに警告が {len(unknown_warns)} 件: {warnings}"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# assign_participant_ids
+# ──────────────────────────────────────────────────────────────────────────────
+
+from src.analysis.load import assign_participant_ids
+
+
+class TestAssignParticipantIds:
+    def _make_df(self):
+        return pd.DataFrame({
+            "norm_name":  ["山田太郎", "山田太郎", "田中花子", "田中花子"],
+            "condition":  ["条件A", "条件B", "条件A", "条件B"],
+            "timestamp":  pd.to_datetime([
+                "2026-11-20 10:00:00",
+                "2026-11-20 10:30:00",
+                "2026-11-20 10:05:00",
+                "2026-11-20 10:35:00",
+            ]),
+        })
+
+    def test_norm_name_replaced_with_id(self):
+        df = self._make_df()
+        result, _ = assign_participant_ids(df)
+        assert set(result["norm_name"].unique()).issubset({"P01", "P02"})
+
+    def test_original_names_not_in_output(self):
+        df = self._make_df()
+        result, _ = assign_participant_ids(df)
+        for name in ["山田太郎", "田中花子"]:
+            assert name not in result["norm_name"].values
+
+    def test_id_to_name_mapping_complete(self):
+        df = self._make_df()
+        _, id_to_name = assign_participant_ids(df)
+        assert set(id_to_name.values()) == {"山田太郎", "田中花子"}
+        assert set(id_to_name.keys()).issubset({"P01", "P02"})
+
+    def test_ordered_by_first_timestamp(self):
+        """最初のタイムスタンプが早い人が P01 になること"""
+        df = self._make_df()  # 山田太郎 10:00, 田中花子 10:05
+        result, id_to_name = assign_participant_ids(df)
+        p01_name = id_to_name["P01"]
+        assert p01_name == "山田太郎"
+
+    def test_does_not_modify_original(self):
+        df = self._make_df()
+        original_names = df["norm_name"].tolist()
+        assign_participant_ids(df)
+        assert df["norm_name"].tolist() == original_names
+
+    def test_row_count_unchanged(self):
+        df = self._make_df()
+        result, _ = assign_participant_ids(df)
+        assert len(result) == len(df)

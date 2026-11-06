@@ -8,9 +8,9 @@
 
 | 項目 | 内容 |
 |------|------|
-| 更新日 | 2026-11-03 |
-| ローカルテスト | 260件 全通過 |
-| 直近の作業 | analysis-v1.0 確定: X1/M1/M2/M3 修正完了・27パターン全通過確認 |
+| 更新日 | 2026-11-06 |
+| ローカルテスト | 288件 全通過 |
+| 直近の作業 | analyze.py エントリポイント・ダミーデータ生成・参加者ID匿名化・Spearman相関 追加 |
 
 ---
 
@@ -36,11 +36,13 @@
 | `tts_generate.py` | `generate_sentence_audio`, `generate_all` | ✅(mock) | ⚠️ | sox の apt-get インストールが必要 |
 | `audio_merge.py` | `merge_audio_files` — 無音を挟んで結合 | ✅ | ✅ | 無音 400ms (SILENCE_DURATION) |
 | `text_normalizer.py` | `normalize_for_tts` — 読み正規化（2階層: 辞書+パターン） | ✅ | ❓ | Colab での実機読み上げ確認はまだ |
-| `analysis/load.py` | `load_and_clean`, ペア突き合わせ・グループ判定 | ✅ | ❓ | ローカル分析ツール。Colab不要 |
+| `analysis/load.py` | `load_and_clean`, ペア突き合わせ・グループ判定・参加者ID割り当て | ✅ | ❓ | ローカル分析ツール。Colab不要 |
 | `analysis/scoring.py` | `compute_score`, Cronbach's α | ✅ | ❓ | ローカル分析ツール。Colab不要 |
-| `analysis/stats_tests.py` | ウィルコクソン・マン・ホイットニー・Cliff's δ | ✅ | ❓ | ローカル分析ツール。Colab不要 |
-| `analysis/figures.py` | 対応図・箱ひげ図・棒グラフ・積み上げグラフ | ✅ | ❓ | ローカル分析ツール。Colab不要 |
-| `analysis/report.py` | `run_full_analysis` — レポート生成・CSV書き出し | ✅ | ❓ | ローカル分析ツール。Colab不要 |
+| `analysis/stats_tests.py` | ウィルコクソン・マン・ホイットニー・Cliff's δ・Spearman相関 | ✅ | ❓ | ローカル分析ツール。Colab不要 |
+| `analysis/figures.py` | 対応図・箱ひげ図・棒グラフ・積み上げグラフ | ✅ | ❓ | ローカル分析ツール。Colab不要（Agg backend 設定済み） |
+| `analysis/dummy.py` | ダミーデータ生成（20人分、グループ1/2 均等） | ✅ | ❓ | ローカル分析ツール。Colab不要 |
+| `analysis/report.py` | `run_analysis` — 匿名化・全分析・レポート生成・CSV書き出し | ✅ | ❓ | ローカル分析ツール。Colab不要 |
+| `analyze.py` | CLIエントリポイント（`python analyze.py 回答.csv`） | ✅ | ❓ | ローカル分析ツール。Colab不要 |
 | `app.py` | Gradio UI（Colab 上で起動） | ✅(import) | ⚠️ | UI 操作フロー全体の確認が残っている |
 
 ---
